@@ -195,6 +195,16 @@ select.in{appearance:none;background-image:linear-gradient(45deg,transparent 50%
 .modes button{border:0;background:transparent;border-radius:999px;padding:8px 14px;font-weight:600;font-size:14px;cursor:pointer;min-height:38px;color:inherit;font-family:inherit}
 .modes button.on{background:#fff;box-shadow:0 1px 4px rgba(190,80,110,.25);color:var(--rose-deep,#b04a6a)}
 .waline{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:6px 0 10px}
+.ohead{background:none;border:0;padding:0;width:100%;text-align:left;cursor:pointer;font:inherit;color:inherit;display:block}
+.qrow{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.qrow select{min-height:44px;font-size:14px;padding:6px 10px}
+.seg2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
+.sumline{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:14px;color:var(--mauve);margin:2px 0 12px}
+.sumline b{color:var(--berry-d)}
+.oblock{border:1.5px solid var(--line);border-radius:16px;padding:12px 14px;margin:10px 0;background:#fff}
+.iline{display:flex;justify-content:space-between;gap:10px;font-size:14px;padding:3px 0}
+.oblock .iline{display:flex;justify-content:space-between;gap:10px;font-size:14px;padding:2px 0}
+.big{font-family:var(--serif);font-weight:700;color:var(--berry);font-size:30px;line-height:1.1}
 .proofimg{width:100%;border-radius:14px;border:1.5px solid var(--line);display:block;background:#fff}
 .qrimg{width:min(260px,72%);border-radius:14px;border:1.5px solid var(--line);background:#fff;padding:8px;display:block;margin:0 auto 12px}
 .pre{white-space:pre-wrap;word-break:break-word}
@@ -463,6 +473,9 @@ function render() {
   else if (v === 'details') detailsView();
   else if (v === 'fuan') fuanView();
   else if (v === 'done') doneView();
+  else if (v === 'yixshop') yixShopView();
+  else if (v === 'yixdetails') yixDetailsView();
+  else if (v === 'yixdone') yixDoneView();
   else if (v === 'find') findView();
   else if (v === 'pay') payView();
   else if (v === 'adminLogin') adminLoginView();
@@ -481,6 +494,7 @@ function welcomeHtml() {
     '<div class="choices">' +
       '<button class="choice" data-go="MAMMOTH"><span class="badge-ico">' + ICON.box + '</span><span><span class="t">' + esc(F.MAMMOTH.title) + '</span><br><span class="s">Pick your peptides by the vial · 10 vials make a kit</span>' + (F.MAMMOTH.open ? '' : '<br><span class="closed-tag">Closed for new orders</span>') + '</span>' + ICON.go + '</button>' +
       '<button class="choice" data-go="FUAN"><span class="badge-ico">' + ICON.drop + '</span><span><span class="t">' + esc(F.FUAN.title) + '</span><br><span class="s">Half kit (5 vials) or a full kit (10 vials)</span>' + (F.FUAN.open ? '' : '<br><span class="closed-tag">Closed for new orders</span>') + '</span>' + ICON.go + '</button>' +
+      '<button class="choice" data-go="YIXING"><span class="badge-ico">' + ICON.heart + '</span><span><span class="t">' + esc(F.YIXING.title) + '</span><br><span class="s">In stock in the Philippines · per kit or per vial · ships by J&amp;T or Lalamove</span>' + (F.YIXING.open ? '' : '<br><span class="closed-tag">Closed for new orders</span>') + '</span>' + ICON.go + '</button>' +
     '</div>' +
     '<div class="stack" style="margin-top:18px">' +
       '<button class="btn ghost" id="findBtn">' + ICON.heart + ' Find or edit my order</button>' +
@@ -496,6 +510,7 @@ function welcomeHtml() {
 
 /* ---------- Mammoth shop */
 function startForm(form) {
+  if (form === 'YIXING') { yixStart(); return; }
   const info = S.cfg.forms[form];
   S.form = form; S.mode = {}; S.fuan = {size: 0}; S.cart = {}; S.step = 1; S.q = ''; S.filter = 'all'; S.cat = ''; S.open = {}; S.mm = null;
   S.editing = null; S.editBase = {}; S.editBasePrice = {};
@@ -911,6 +926,11 @@ function findView() {
     const btn = $('#go'); F.error = ''; $('#err').innerHTML = '';
     btn.disabled = true; btn.textContent = 'Looking…';
     try {
+      if (/^YIX-/i.test(F.ref.trim())) {
+        const y = await call('yixLookup', F.ref.trim(), F.phone.trim());
+        S.yix.order = S.order = y.order; S.yix.products = y.products; S.yix.saved = ''; store.set('blvc_phone', F.phone);
+        go('yixdone'); return;
+      }
       const r = await call('lookupOrder', F.ref.trim(), F.phone.trim());
       S.kits = r.kits; S.order = r.order; S.justSaved = ''; store.set('blvc_phone', F.phone);
       go('done');
@@ -926,7 +946,7 @@ const blankPay = () => ({code: '', due: 0, kind: 'ORDER', ref: '', phone: store.
 S.pay = blankPay();
 function openPay(o) {
   S.pay = blankPay();
-  if (o) { S.pay.ref = o.ref; S.pay.phone = o.phone || S.pay.phone; S.pay.amount = String(o.total); S.pay.due = o.total; S.pay.from = 'done'; }
+  if (o) { S.pay.ref = o.ref; S.pay.phone = o.phone || S.pay.phone; const amt = o.due != null ? o.due : o.total; S.pay.amount = String(amt); S.pay.due = amt; S.pay.from = o.yix ? 'yixdone' : 'done'; }
   go('pay');
 }
 const phDate = ms => new Date(ms).toLocaleString('en-PH', {timeZone: 'Asia/Manila', day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true});
@@ -1015,7 +1035,7 @@ function payView() {
     '<p class="hint">We add a watermark with the reference, amount, date and time. Your original image stays on your phone.</p>' +
     '<div id="pv" style="margin-top:12px"></div></div>' +
     '<div id="err"></div><button class="btn" id="go">Upload payment</button>';
-  $('#back').onclick = () => go(P.from === 'done' && S.order ? 'done' : 'welcome');
+  $('#back').onclick = () => go(P.from === 'yixdone' && S.order ? 'yixdone' : P.from === 'done' && S.order ? 'done' : 'welcome');
   if ($('#copyDet')) $('#copyDet').onclick = () => copyText(I.details, 'Payment details copied');
   if ($('#dlQr')) $('#dlQr').onclick = () => downloadImage(I.qr, 'bellavie-payment-qr.png');
   document.querySelectorAll('#kinds [data-k]').forEach(b => b.onclick = () => { P.kind = b.dataset.k; payView(); });
@@ -1062,7 +1082,7 @@ function payDoneView() {
     '<button class="btn soft" id="more">Upload another payment</button><button class="btn ghost" id="home">Back to home</button></div>';
   $('#cpy').onclick = () => copyImage(R.cv);
   $('#dl').onclick = () => downloadImage(R.url, R.id + '.jpg');
-  $('#more').onclick = () => openPay(P.from === 'done' ? S.order : null);
+  $('#more').onclick = () => openPay(P.from === 'done' || P.from === 'yixdone' ? S.order : null);
   $('#home').onclick = () => go('welcome');
 }
 
@@ -1096,14 +1116,14 @@ function adminView() {
   const active = d.orders.filter(o => o.status !== 'Removed');
   const sales = active.reduce((a, o) => a + o.total, 0), unpaid = active.filter(o => o.pay !== 'Paid').length;
   const pendingPay = (d.payments || []).filter(x => x.status === 'Pending').length;
-  const tabs = [['orders', 'Orders'], ['payments', 'Payments' + (pendingPay ? ' (' + pendingPay + ')' : '')], ['bunuan', 'Bunuan'], ['products', 'Products'], ['settings', 'Settings']];
+  const tabs = [['orders', 'Orders'], ['payments', 'Payments' + (pendingPay ? ' (' + pendingPay + ')' : '')], ['yixing', 'Yixing'], ['inventory', 'Inventory'], ['proceeds', 'Proceeds'], ['products', 'Products'], ['settings', 'Settings']];
   $('#app').innerHTML =
     '<div class="top"><button class="iconbtn" id="back" aria-label="Log out">' + ICON.back + '</button><div class="grow"><div class="ttl">Admin dashboard</div><div class="sub">' + esc(d.pub.businessName) + '</div></div></div>' +
     '<div class="stats"><div class="stat"><b>' + active.length + '</b><span>active orders</span></div><div class="stat"><b>' + fmt(sales).replace('.00', '') + '</b><span>total sales</span></div><div class="stat"><b>' + unpaid + '</b><span>not fully paid</span></div></div>' +
     '<div class="tabs" role="tablist">' + tabs.map(t => '<button class="chip" role="tab" data-t="' + t[0] + '" aria-pressed="' + (A.tab === t[0]) + '">' + t[1] + '</button>').join('') + '</div><div id="tab"></div>';
   $('#back').onclick = () => { A.token = ''; A.data = null; go('welcome'); toast('Logged out. See you soon'); };
   document.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { A.tab = b.dataset.t; adminView(); });
-  ({orders: adminOrders, payments: adminPayments, bunuan: adminBunuan, products: adminProducts, settings: adminSettings})[A.tab]();
+  ({orders: adminOrders, payments: adminPayments, yixing: adminYixing, inventory: adminInventory, proceeds: adminProceeds, products: adminProducts, settings: adminSettings})[A.tab]();
 }
 
 
@@ -1127,7 +1147,7 @@ function adminPayments() {
 }
 function openApproval() {
   const d = A.data, due = r => { const paid = (d.payments || []).filter(x => x.ref === r.ref && x.kind === 'ORDER' && x.status !== 'Rejected').reduce((a, x) => a + x.amount, 0); return Math.max(0, Math.round((r.total - paid) * 100) / 100); };
-  const open_ = d.orders.filter(o => o.status !== 'Removed' && o.pay !== 'Paid');
+  const open_ = d.orders.concat(d.yix || []).filter(o => o.status !== 'Removed' && o.pay !== 'Paid');
   modal('<div class="row spread"><h2 class="h-lg">Approval code</h2><button class="iconbtn" id="mx" aria-label="Close">' + ICON.x + '</button></div>' +
     '<p class="small muted" style="margin:8px 0 12px">Use this when a buyer needs to pay a different amount than the invoice. The code works once, for this order and this exact amount, for 48 hours.</p>' +
     '<div class="field"><label class="f" for="ar">Order reference</label><input class="in" id="ar" list="arl" placeholder="BLVC-MMGB-XXXXXX" autocapitalize="characters"><datalist id="arl">' + open_.map(o => '<option value="' + esc(o.ref) + '">' + esc(o.name) + '</option>').join('') + '</datalist></div>' +
@@ -1169,39 +1189,112 @@ function openPayment(id) {
 }
 
 /* --- orders tab */
+const PAYS = ['Unpaid', 'Partially Paid', 'Paid (unverified)', 'Paid'], STATS = ['Received', 'Confirmed', 'Packed', 'Shipped', 'Completed', 'Removed'];
+const payCls = p => p === 'Paid' ? 'ok' : p === 'Unpaid' ? 'bad' : 'kit';
+function paidOf(o) {
+  if (o.pay === 'Paid') return o.total;
+  const v = (A.data.payments || []).filter(x => x.ref === o.ref && x.kind === 'ORDER' && x.status === 'Verified').reduce((a, x) => a + x.amount, 0);
+  return Math.min(o.total, v);
+}
+function groupCust(orders) {
+  const map = {}, list = [];
+  orders.slice().sort((a, b) => a.createdAt < b.createdAt ? -1 : 1).forEach(o => {
+    const g = map[o.custKey] || (map[o.custKey] = {key: o.custKey, name: o.custName, regular: [], pasalo: [], all: []});
+    (o.pasalo ? g.pasalo : g.regular).push(o); g.all.push(o);
+    if (!list.includes(g)) list.push(g);
+  });
+  return list.sort((a, b) => a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1);
+}
+const sel = (arr, v, attrs) => '<select class="in" ' + attrs + '>' + arr.map(x => '<option' + (x === v ? ' selected' : '') + '>' + x + '</option>').join('') + '</select>';
 function adminOrders() {
   const f = A.f, d = A.data;
+  if (!A.view) A.view = 'orders';
+  if (!A.sort) A.sort = 'new';
   $('#tab').innerHTML =
     '<button class="btn" id="newOrder">Add an order</button>' +
+    '<div class="seg2" id="vw"><button class="opt" data-v="orders" aria-pressed="' + (A.view === 'orders') + '">By order</button><button class="opt" data-v="customers" aria-pressed="' + (A.view === 'customers') + '">By customer</button></div>' +
     '<div class="filters"><div class="full search"><span>' + ICON.search + '</span><input class="in" id="fq" type="search" placeholder="Search name, number or reference" value="' + esc(f.q) + '"></div>' +
     '<select class="in" id="ff"><option value="">All forms</option><option value="MAMMOTH"' + (f.form === 'MAMMOTH' ? ' selected' : '') + '>Mammoth</option><option value="FUAN"' + (f.form === 'FUAN' ? ' selected' : '') + '>Fuan GTT</option></select>' +
-    '<select class="in" id="fp2"><option value="">Any payment</option>' + ['Unpaid', 'Partially Paid', 'Paid (unverified)', 'Paid'].map(x => '<option' + (f.pay === x ? ' selected' : '') + '>' + x + '</option>').join('') + '</select>' +
-    '<select class="in full" id="fs"><option value="">Any status</option>' + ['Received', 'Confirmed', 'Packed', 'Shipped', 'Completed', 'Removed'].map(x => '<option' + (f.status === x ? ' selected' : '') + '>' + x + '</option>').join('') + '</select></div><div id="olist"></div>';
+    '<select class="in" id="fp2"><option value="">Any payment</option>' + PAYS.map(x => '<option' + (f.pay === x ? ' selected' : '') + '>' + x + '</option>').join('') + '</select>' +
+    '<select class="in" id="fs"><option value="">Any status</option>' + STATS.map(x => '<option' + (f.status === x ? ' selected' : '') + '>' + x + '</option>').join('') + '</select>' +
+    '<select class="in" id="fsort"><option value="new"' + (A.sort === 'new' ? ' selected' : '') + '>Newest first</option><option value="old"' + (A.sort === 'old' ? ' selected' : '') + '>Oldest first</option><option value="big"' + (A.sort === 'big' ? ' selected' : '') + '>Biggest total</option><option value="name"' + (A.sort === 'name' ? ' selected' : '') + '>Name A to Z</option></select></div>' +
+    '<div id="osum" class="sumline"></div><div id="olist"></div>';
   const draw = () => {
     const q = f.q.trim().toLowerCase();
     const rows = d.orders.filter(o => (!f.form || o.form === f.form) && (!f.pay || o.pay === f.pay) && (!f.status || o.status === f.status) &&
       (!q || (o.ref + ' ' + o.name + ' ' + o.phone).toLowerCase().includes(q)));
-    $('#olist').innerHTML = rows.length ? rows.map(o =>
-      '<button class="ocard" data-ref="' + esc(o.ref) + '"><div class="row spread"><span class="ref">' + esc(o.ref) + '</span><b class="num">' + fmt(o.total) + '</b></div>' +
-      '<div>' + esc(o.name) + ' · <span class="muted">' + esc(o.phone) + ' · ' + esc(o.region) + '</span></div>' +
-      '<div style="margin-top:6px"><span class="tag ' + (o.pay === 'Paid' ? 'ok' : o.pay === 'Unpaid' ? 'bad' : 'kit') + '">' + esc(o.pay) + '</span><span class="tag plain">' + esc(o.status) + '</span>' +
-      (o.status !== 'Removed' ? '<span class="tag ' + (o.kitStatus === 'Complete' ? 'ok' : 'kit') + '" style="margin-left:6px">kits: ' + esc(o.kitStatus) + '</span>' : '') + '</div>' +
-      '<div class="muted small" style="margin-top:6px">' + o.items.map(i => esc(i.name) + ' ' + esc(i.spec) + ' ×' + i.qty).join(' · ') + '</div></button>').join('')
+    const live = rows.filter(o => o.status !== 'Removed');
+    const total = live.reduce((a, o) => a + o.total, 0), paid = live.reduce((a, o) => a + paidOf(o), 0), vials = live.reduce((a, o) => a + o.vials, 0);
+    $('#osum').innerHTML = '<span><b>' + live.length + '</b> orders</span><span><b>' + vials + '</b> vials</span><span>Total <b>' + fmt(total) + '</b></span><span>Paid <b>' + fmt(paid) + '</b></span><span>Balance <b>' + fmt(total - paid) + '</b></span>';
+    if (A.view === 'customers') {
+      const groups = groupCust(live);
+      if (A.sort === 'big') groups.sort((a, b) => b.all.reduce((s, o) => s + o.total, 0) - a.all.reduce((s, o) => s + o.total, 0));
+      else if (A.sort === 'new') groups.sort((a, b) => (b.all[b.all.length - 1].createdAt < a.all[a.all.length - 1].createdAt ? -1 : 1));
+      else if (A.sort === 'old') groups.sort((a, b) => (a.all[0].createdAt < b.all[0].createdAt ? -1 : 1));
+      $('#olist').innerHTML = groups.length ? groups.map(g => {
+        const t = g.all.reduce((s, o) => s + o.total, 0), p = g.all.reduce((s, o) => s + paidOf(o), 0), v = g.all.reduce((s, o) => s + o.vials, 0);
+        return '<button class="ocard" data-ck="' + esc(g.key) + '"><div class="row spread"><span class="ref">' + esc(g.name) + '</span><b class="num">' + fmt(t) + '</b></div>' +
+          '<div class="small muted" style="margin-top:2px">' + g.all.length + ' order' + (g.all.length === 1 ? '' : 's') + ' · ' + v + ' vials' + (g.pasalo.length ? ' · ' + g.pasalo.length + ' pasalo' : '') + '</div>' +
+          '<div style="margin-top:6px"><span class="tag ' + (t - p < 0.005 ? 'ok' : p > 0 ? 'kit' : 'bad') + '" style="margin-left:0">' + (t - p < 0.005 ? 'Fully paid' : 'Balance ' + fmt(t - p)) + '</span>' +
+          g.all.map(o => '<span class="tag ' + payCls(o.pay) + '">' + esc(o.pay) + '</span>').filter((x, i, a) => a.indexOf(x) === i).join('') + '</div></button>';
+      }).join('') : '<div class="card center"><p class="h-md">No customers here yet</p></div>';
+      document.querySelectorAll('[data-ck]').forEach(b => b.onclick = () => openCustomer(b.dataset.ck));
+      return;
+    }
+    const sorted = rows.slice();
+    if (A.sort === 'old') sorted.reverse(); else if (A.sort === 'big') sorted.sort((a, b) => b.total - a.total); else if (A.sort === 'name') sorted.sort((a, b) => a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1);
+    $('#olist').innerHTML = sorted.length ? sorted.map(o =>
+      '<div class="ocard" style="cursor:default"><button class="ohead" data-ref="' + esc(o.ref) + '"><div class="row spread"><span class="ref">' + esc(o.ref) + '</span><b class="num">' + fmt(o.total) + '</b></div>' +
+      '<div>' + esc(o.name) + (o.pasalo ? ' <span class="tag plain">pasalo</span>' : '') + ' · <span class="muted">' + esc(o.phone) + ' · ' + esc(o.region) + '</span></div>' +
+      '<div style="margin-top:6px"><span class="tag ' + payCls(o.pay) + '" style="margin-left:0">' + esc(o.pay) + '</span><span class="tag plain">' + esc(o.status) + '</span>' +
+      (o.status !== 'Removed' ? '<span class="tag ' + (o.kitStatus === 'Complete' ? 'ok' : 'kit') + '">kits: ' + esc(o.kitStatus) + '</span>' : '') + '</div>' +
+      '<div class="muted small" style="margin-top:6px">' + o.items.map(i => esc(i.name) + ' ' + esc(i.spec) + ' ×' + i.qty).join(' · ') + '</div></button>' +
+      '<div class="qrow">' + sel(PAYS, o.pay, 'data-qp="' + esc(o.ref) + '" aria-label="Payment status"') + sel(STATS, o.status, 'data-qs="' + esc(o.ref) + '" aria-label="Order status"') + '</div></div>').join('')
       : '<div class="card center"><p class="h-md">No orders here yet</p><p class="muted">Orders from the website show up as soon as they are placed.</p></div>';
-    document.querySelectorAll('.ocard').forEach(b => b.onclick = () => openOrderEditor(b.dataset.ref));
+    document.querySelectorAll('.ohead').forEach(b => b.onclick = () => openOrderEditor(b.dataset.ref));
+    document.querySelectorAll('[data-qp]').forEach(s => s.onchange = async () => { try { await adminCall('adminSetOrder', s.dataset.qp, {pay: s.value}); adminView(); toast('Payment status updated'); } catch (e) { adminView(); } });
+    document.querySelectorAll('[data-qs]').forEach(s => s.onchange = async () => { try { await adminCall('adminSetOrder', s.dataset.qs, {status: s.value}); adminView(); toast('Order status updated'); } catch (e) { adminView(); } });
   };
+  document.querySelectorAll('#vw [data-v]').forEach(b => b.onclick = () => { A.view = b.dataset.v; adminOrders(); });
   $('#fq').oninput = e => { f.q = e.target.value; draw(); };
   $('#ff').onchange = e => { f.form = e.target.value; draw(); };
   $('#fp2').onchange = e => { f.pay = e.target.value; draw(); };
   $('#fs').onchange = e => { f.status = e.target.value; draw(); };
+  $('#fsort').onchange = e => { A.sort = e.target.value; draw(); };
   $('#newOrder').onclick = () => openOrderEditor('');
   draw();
+}
+function openCustomer(key) {
+  const d = A.data, g = groupCust(d.orders.filter(o => o.status !== 'Removed' && o.custKey === key))[0];
+  if (!g) { closeModal(); return; }
+  const t = g.all.reduce((s, o) => s + o.total, 0), p = g.all.reduce((s, o) => s + paidOf(o), 0);
+  const block = o => '<div class="oblock" data-o="' + esc(o.ref) + '"><div class="row spread"><b class="serif" style="font-size:17px">' + esc(o.ref) + '</b><span class="muted small">' + esc(o.formTitle) + '</span></div>' +
+    '<div class="muted small" style="margin-bottom:6px">' + esc(o.name) + ' · ' + esc(o.phone) + ' · ' + esc(o.region) + '</div>' +
+    o.items.map(i => '<div class="iline"><span>' + esc(i.name) + ' ' + esc(i.spec) + ' <span class="muted">× ' + i.qty + '</span></span><b class="num">' + fmt(i.total) + '</b></div>').join('') +
+    '<div class="iline muted"><span>Packaging</span><span class="num">' + fmt(o.packaging) + '</span></div><div class="iline muted"><span>Shipping</span><span class="num">' + fmt(o.shipping) + '</span></div>' +
+    '<div class="iline"><b>Order total</b><b class="num">' + fmt(o.total) + '</b></div>' +
+    '<div class="qrow">' + sel(PAYS, o.pay, 'data-cp="' + esc(o.ref) + '" aria-label="Payment status"') + sel(STATS, o.status, 'data-cs="' + esc(o.ref) + '" aria-label="Order status"') + '</div>' +
+    '<div class="qrow"><div><label class="f small">Your packaging cost</label><input class="in" type="number" step="0.01" min="0" data-cpk="' + esc(o.ref) + '" value="' + esc(o.packCost || '') + '"></div><div><label class="f small">Your shipping cost</label><input class="in" type="number" step="0.01" min="0" data-csh="' + esc(o.ref) + '" value="' + esc(o.shipCost || '') + '"></div></div>' +
+    '<div class="small muted" style="margin:6px 0">Fees collected ' + fmt(o.packaging + o.shipping) + ' · left after your costs ' + fmt(o.packaging + o.shipping - (o.packCost || 0) - (o.shipCost || 0)) + '</div>' +
+    '<div class="row" style="gap:8px"><button class="btn sm" data-csave="' + esc(o.ref) + '">Save</button><button class="btn sm ghost" data-cedit="' + esc(o.ref) + '">Edit items</button></div></div>';
+  modal('<div class="row spread"><h2 class="h-lg">' + esc(g.name) + '</h2><button class="iconbtn" id="mx" aria-label="Close">' + ICON.x + '</button></div>' +
+    '<div class="sumline" style="margin-top:6px"><span>Total <b>' + fmt(t) + '</b></span><span>Paid <b>' + fmt(p) + '</b></span><span>Balance <b>' + fmt(t - p) + '</b></span></div>' +
+    g.regular.map(block).join('') + (g.pasalo.length ? '<h3 class="h-md" style="margin:14px 0 4px">Pasalo orders</h3>' + g.pasalo.map(block).join('') : '') +
+    '<button class="btn ghost" id="cdone" style="margin-top:8px">Close</button>');
+  $('#mx').onclick = closeModal; $('#cdone').onclick = closeModal;
+  document.querySelectorAll('[data-csave]').forEach(b => b.onclick = async () => {
+    const r = b.dataset.csave, q = a => document.querySelector('[' + a + '="' + r + '"]');
+    b.disabled = true; b.textContent = 'Saving…';
+    try { await adminCall('adminSetOrder', r, {pay: q('data-cp').value, status: q('data-cs').value, packCost: q('data-cpk').value, shipCost: q('data-csh').value}); toast('Saved. The sheet is updated'); openCustomer(key); adminView(); openCustomer(key); }
+    catch (e) { b.disabled = false; b.textContent = 'Save'; }
+  });
+  document.querySelectorAll('[data-cedit]').forEach(b => b.onclick = () => openOrderEditor(b.dataset.cedit));
 }
 function openOrderEditor(ref) {
   const d = A.data, o = ref ? d.orders.find(x => x.ref === ref) : null;
   A.edit = o ? {ref: o.ref, form: o.form, name: o.name, phone: o.phone, region: o.region, combined: o.shipOpt !== 'Standard', mammothRef: o.mammothRef || '', note: o.note,
-    items: o.items.map(i => ({code: i.code, qty: i.qty, price: i.price})), pay: o.pay, status: o.status, adminRemarks: o.adminRemarks || '', packagingFee: o.packaging, shippingFee: o.shipping, waCustomer: o.waCustomer}
-    : {ref: '', form: 'MAMMOTH', name: '', phone: '', region: 'Luzon', combined: false, mammothRef: '', note: '', items: [], pay: 'Unpaid', status: 'Received', adminRemarks: '', packagingFee: '', shippingFee: ''};
+    items: o.items.map(i => ({code: i.code, qty: i.qty, price: i.price})), pay: o.pay, status: o.status, adminRemarks: o.adminRemarks || '', packagingFee: o.packaging, shippingFee: o.shipping, waCustomer: o.waCustomer, packCost: o.packCost || '', shipCost: o.shipCost || ''}
+    : {packCost: '', shipCost: '', ref: '', form: 'MAMMOTH', name: '', phone: '', region: 'Luzon', combined: false, mammothRef: '', note: '', items: [], pay: 'Unpaid', status: 'Received', adminRemarks: '', packagingFee: '', shippingFee: ''};
   drawEditor();
 }
 function drawEditor() {
@@ -1216,13 +1309,14 @@ function drawEditor() {
     '<div class="field" id="mmBoxA"><label class="f">Linked Mammoth reference</label><input class="in" id="em" value="' + esc(E.mammothRef) + '" placeholder="BLVC-MMGB-XXXXXX"></div>' +
     '<label class="f">Items</label><div id="eitems"></div><button class="btn soft sm" id="addItem" style="margin-bottom:16px">Add item</button>' +
     '<div class="two"><div class="field"><label class="f">Packaging fee <span class="muted">(blank = default)</span></label><input class="in" id="epk" type="number" step="0.01" value="' + esc(E.packagingFee) + '"></div><div class="field"><label class="f">Shipping fee <span class="muted">(blank = default)</span></label><input class="in" id="esh" type="number" step="0.01" value="' + esc(E.shippingFee) + '"></div></div>' +
+    '<div class="two"><div class="field"><label class="f">Your packaging cost <span class="muted">(what you paid)</span></label><input class="in" id="epc" type="number" step="0.01" min="0" value="' + esc(E.packCost) + '"></div><div class="field"><label class="f">Your shipping cost <span class="muted">(what you paid)</span></label><input class="in" id="esc2" type="number" step="0.01" min="0" value="' + esc(E.shipCost) + '"></div></div>' +
     '<div class="two"><div class="field"><label class="f">Payment</label><select class="in" id="epay">' + opts(['Unpaid', 'Partially Paid', 'Paid (unverified)', 'Paid'], E.pay) + '</select></div><div class="field"><label class="f">Order status</label><select class="in" id="est">' + opts(['Received', 'Confirmed', 'Packed', 'Shipped', 'Completed', 'Removed'], E.status) + '</select></div></div>' +
     '<div class="field"><label class="f">Customer note</label><textarea class="in" id="eno">' + esc(E.note) + '</textarea></div>' +
     '<div class="field"><label class="f">Admin remarks <span class="muted">(only you see this)</span></label><textarea class="in" id="ear">' + esc(E.adminRemarks) + '</textarea></div>' +
     '<div id="eerr"></div><div class="stack"><button class="btn" id="esave">Save order</button>' +
     (E.ref ? '<a class="btn wa" href="' + esc(E.waCustomer || '#') + '" target="_blank" rel="noopener">' + ICON.wa + ' Message customer</a><button class="btn danger" id="edel">' + ICON.trash + ' Delete permanently</button>' : '') + '</div>');
   const bind = (id, key, ev) => { $(id).addEventListener(ev || 'input', e => { E[key] = e.target.value; }); };
-  bind('#en', 'name'); bind('#ep', 'phone'); bind('#er', 'region', 'change'); bind('#em', 'mammothRef'); bind('#epk', 'packagingFee'); bind('#esh', 'shippingFee');
+  bind('#en', 'name'); bind('#ep', 'phone'); bind('#er', 'region', 'change'); bind('#em', 'mammothRef'); bind('#epk', 'packagingFee'); bind('#esh', 'shippingFee'); bind('#epc', 'packCost'); bind('#esc2', 'shipCost');
   bind('#epay', 'pay', 'change'); bind('#est', 'status', 'change'); bind('#eno', 'note'); bind('#ear', 'adminRemarks');
   $('#ec').onchange = e => { E.combined = e.target.value === '1'; toggleComb(); };
   $('#ef').onchange = e => { E.form = e.target.value; E.items = []; drawEditor(); };
@@ -1252,18 +1346,81 @@ async function saveOrderEdit() {
   catch (e) { btn.disabled = false; btn.textContent = 'Save order'; $('#eerr').innerHTML = '<div class="alert err" role="alert">' + esc(e.message) + '</div>'; }
 }
 
-/* --- bunuan tab */
-function adminBunuan() {
-  const d = A.data;
-  const rows = d.kitRows.filter(k => k.size > 1).sort((a, b) => (a.needed || 99) - (b.needed || 99) || a.name.localeCompare(b.name));
-  const open = rows.filter(k => k.waiting > 0), done = rows.filter(k => k.waiting === 0);
-  const holders = (k) => d.orders.filter(o => o.status !== 'Removed' && o.form === k.form).map(o => ({o, it: o.items.find(i => i.code === k.code && i.waiting > 0)})).filter(x => x.it);
-  $('#tab').innerHTML = '<p class="muted small" style="margin-bottom:10px">Incomplete kits are listed closest to complete first. They update by themselves when buyers add or remove vials.</p>' +
-    (open.length ? open.map(k => '<div class="card" style="padding:16px"><div class="row spread"><div><b class="serif" style="font-size:20px">' + esc(k.name) + '</b><br><span class="muted small">' + esc(k.spec) + ' · ' + (k.form === 'MAMMOTH' ? 'Mammoth' : 'Fuan') + '</span></div><span class="tag kit">needs ' + k.needed + '</span></div>' +
-      '<div class="kbar"><i style="width:' + Math.round(k.waiting / k.size * 100) + '%"></i></div><div class="small muted" style="margin:6px 0">' + k.waiting + ' of ' + k.size + ' vials · ' + k.kits + ' kit' + (k.kits === 1 ? '' : 's') + ' complete · ' + k.orders + ' order' + (k.orders === 1 ? '' : 's') + '</div>' +
-      '<div class="small">' + holders(k).map(h => esc(h.o.name) + ' (' + h.it.waiting + ')').join(' · ') + '</div></div>').join('')
-      : '<div class="card center"><p class="h-md">Every kit is complete</p><p class="muted">Nothing is waiting in the bunuan.</p></div>') +
-    (done.length ? '<h3 class="h-md" style="margin:18px 0 8px">Completed kits</h3>' + done.map(k => '<div class="ocard" style="cursor:default"><div class="row spread"><span><b>' + esc(k.name) + '</b> <span class="muted small">' + esc(k.spec) + '</span></span><span class="tag ok">' + k.kits + ' kit' + (k.kits === 1 ? '' : 's') + '</span></div></div>').join('') : '');
+/* --- inventory tab: pre-orders only, so this tracks what buyers ordered and where it is in your supply chain */
+const SUPPLY = ['Not yet ordered', 'Forwarded to supplier', 'Arrived', 'Shipped to buyers'];
+function invRows() {
+  const d = A.data, live = d.orders.filter(o => o.status !== 'Removed');
+  return d.products.map(p => {
+    const k = d.kitRows.find(x => x.form === p.form && x.code === p.code) || {ordered: 0, kits: 0, waiting: 0, needed: 0, orders: 0, size: p.kitSize};
+    const buyers = new Set(); let value = 0;
+    live.forEach(o => { if (o.form !== p.form) return; o.items.forEach(i => { if (i.code === p.code) { buyers.add(o.custKey); value += i.total; } }); });
+    return Object.assign({}, k, {p, buyers: buyers.size, value});
+  });
+}
+function adminInventory() {
+  const d = A.data, I = A.inv || (A.inv = {q: '', f: 'orders'});
+  const all = invRows(), withOrders = all.filter(r => r.ordered > 0);
+  const kits = withOrders.reduce((a, r) => a + r.kits, 0), loose = withOrders.reduce((a, r) => a + r.waiting, 0);
+  const chips = [['orders', 'With orders'], ['ready', 'Kits ready'], ['bunuan', 'In bunuan'], ['todo', 'Not yet ordered'], ['none', 'No orders'], ['all', 'All']];
+  $('#tab').innerHTML =
+    '<p class="muted small" style="margin-bottom:10px">You work on pre-orders, so there is no stock on hand. This shows what buyers have ordered and where each product is in your supply.</p>' +
+    '<div class="stats"><div class="stat"><b>' + withOrders.length + '</b><span>products ordered</span></div><div class="stat"><b>' + kits + '</b><span>complete kits</span></div><div class="stat"><b>' + loose + '</b><span>loose vials (bunuan)</span></div></div>' +
+    '<button class="btn soft" id="cpfwd" style="margin-bottom:12px">' + ICON.copy + ' Copy kits to forward</button>' +
+    '<div class="search" style="margin:0 0 10px"><span>' + ICON.search + '</span><input class="in" id="iq" type="search" placeholder="Search products" value="' + esc(I.q) + '"></div>' +
+    '<div class="chips" id="ichips">' + chips.map(c => '<button class="chip" data-f="' + c[0] + '" aria-pressed="' + (I.f === c[0]) + '">' + c[1] + '</button>').join('') + '</div><div id="ilist"></div>';
+  const draw = () => {
+    const q = I.q.trim().toLowerCase();
+    let rows = all.filter(r => !q || (r.p.name + ' ' + r.p.spec + ' ' + r.p.code).toLowerCase().includes(q));
+    rows = rows.filter(r => I.f === 'all' ? true : I.f === 'orders' ? r.ordered > 0 : I.f === 'ready' ? r.kits > 0 : I.f === 'bunuan' ? r.waiting > 0 : I.f === 'todo' ? (r.kits > 0 && r.p.supply === SUPPLY[0]) : r.ordered === 0);
+    rows.sort((a, b) => b.ordered - a.ordered || a.p.name.localeCompare(b.p.name));
+    $('#ilist').innerHTML = rows.length ? rows.slice(0, 150).map(r =>
+      '<div class="card" style="padding:14px 16px"><div class="row spread"><div><b class="serif" style="font-size:19px">' + esc(r.p.name) + '</b><br><span class="muted small">' + esc(r.p.spec) + ' · ' + (r.p.form === 'MAMMOTH' ? 'Mammoth' : 'Fuan') + ' · ' + esc(r.p.category) + '</span></div>' +
+      '<div style="text-align:right"><b class="num">' + r.ordered + '</b><br><span class="muted small">vials ordered</span></div></div>' +
+      (r.ordered ? '<div class="kbar" style="margin-top:8px"><i style="width:' + (r.size > 1 ? Math.round(r.waiting / r.size * 100) : 100) + '%"></i></div>' +
+        '<div class="small muted" style="margin:6px 0">' + r.kits + ' kit' + (r.kits === 1 ? '' : 's') + ' complete' + (r.waiting ? ' · ' + r.waiting + ' loose, needs ' + r.needed + ' more' : ' · nothing loose') + ' · ' + r.buyers + ' buyer' + (r.buyers === 1 ? '' : 's') + ' · ' + fmt(r.value) + '</div>' : '<div class="small muted" style="margin:6px 0">No orders yet</div>') +
+      '<label class="f small" style="margin-top:6px">Supply status</label>' + sel(SUPPLY, r.p.supply, 'data-sp="' + esc(r.p.form + '|' + r.p.code) + '"') + '</div>').join('') +
+      (rows.length > 150 ? '<p class="muted small center">Showing 150 of ' + rows.length + '. Search to narrow down.</p>' : '')
+      : '<div class="card center"><p class="h-md">Nothing here</p><p class="muted">Try another filter.</p></div>';
+    document.querySelectorAll('[data-sp]').forEach(s => s.onchange = async () => { const [f, c] = s.dataset.sp.split('|'); try { await adminCall('adminSetSupply', f, c, s.value); adminView(); toast('Supply status updated'); } catch (e) { adminView(); } });
+  };
+  $('#iq').oninput = e => { I.q = e.target.value; draw(); };
+  document.querySelectorAll('#ichips [data-f]').forEach(b => b.onclick = () => { I.f = b.dataset.f; adminInventory(); });
+  $('#cpfwd').onclick = () => {
+    const lines = [];
+    ['MAMMOTH', 'FUAN'].forEach(f => {
+      const rs = withOrders.filter(r => r.p.form === f && r.kits > 0).sort((a, b) => a.p.name.localeCompare(b.p.name));
+      if (!rs.length) return;
+      lines.push(d.pub.forms[f].title + ': kits to forward');
+      rs.forEach(r => lines.push('• ' + r.p.name + ' ' + r.p.spec + ': ' + r.kits + ' kit' + (r.kits === 1 ? '' : 's') + (r.p.supply !== SUPPLY[0] ? ' (' + r.p.supply + ')' : '')));
+      lines.push('');
+    });
+    copyText(lines.length ? lines.join('\n').trim() : 'No complete kits yet.', 'Copied. Paste it to your supplier');
+  };
+  draw();
+}
+
+/* --- proceeds tab: your packaging and shipping fees, apart from item sales */
+function adminProceeds() {
+  const d = A.data, live = d.orders.filter(o => o.status !== 'Removed'), paid = live.filter(o => o.pay === 'Paid');
+  const S = (arr, f) => Math.round(arr.reduce((a, o) => a + (f(o) || 0), 0) * 100) / 100;
+  const pk = {exp: S(live, o => o.packaging), col: S(paid, o => o.packaging), cost: S(live, o => o.packCost)};
+  const sh = {exp: S(live, o => o.shipping), col: S(paid, o => o.shipping), cost: S(live, o => o.shipCost)};
+  const left = x => Math.round((x.col - x.cost) * 100) / 100, ifAll = x => Math.round((x.exp - x.cost) * 100) / 100;
+  const total = {exp: pk.exp + sh.exp, col: pk.col + sh.col, cost: pk.cost + sh.cost};
+  const noCost = paid.filter(o => !o.packCost && !o.shipCost).length;
+  const row = (label, x) => '<div class="card" style="padding:16px"><div class="row spread"><b class="serif" style="font-size:19px">' + label + '</b><span class="big">' + fmt(left(x)) + '</span></div><div class="small muted" style="text-align:right;margin-bottom:8px">left after costs (from Paid orders)</div>' +
+    '<div class="iline"><span>Expected from all active orders</span><b class="num">' + fmt(x.exp) + '</b></div><div class="iline"><span>Collected (orders marked Paid)</span><b class="num">' + fmt(x.col) + '</b></div><div class="iline"><span>Your costs entered</span><b class="num">' + fmt(x.cost) + '</b></div><div class="iline"><span>Left if every order pays</span><b class="num">' + fmt(ifAll(x)) + '</b></div></div>';
+  const regs = ['Luzon', 'Visayas', 'Mindanao'].map(r => {
+    const o = live.filter(x => x.region === r && x.shipOpt === 'Standard'), p = o.filter(x => x.pay === 'Paid');
+    return '<div class="iline"><span>' + r + ' <span class="muted">(' + o.length + ' order' + (o.length === 1 ? '' : 's') + ')</span></span><span class="num">collected ' + fmt(S(p, x => x.shipping)) + ' · cost ' + fmt(S(o, x => x.shipCost)) + ' · <b>' + fmt(S(p, x => x.shipping) - S(o, x => x.shipCost)) + '</b></span></div>';
+  }).join('');
+  $('#tab').innerHTML =
+    '<p class="muted small" style="margin-bottom:10px">Item sales go to your supplier. This page only counts your income from packaging and shipping fees.</p>' +
+    '<div class="card center" style="padding:18px"><div class="muted small">Total fees left after your costs</div><div class="big" style="font-size:38px">' + fmt(left(total)) + '</div><div class="small muted">Collected ' + fmt(total.col) + ' minus costs ' + fmt(total.cost) + '</div></div>' +
+    (noCost ? '<div class="alert warn">' + noCost + ' paid order' + (noCost === 1 ? ' has' : 's have') + ' no cost entered yet. Open an order (or a customer in Orders → By customer) and add what you paid for packaging and shipping.</div>' : '') +
+    row('Packaging fees', pk) + row('Shipping fees', sh) +
+    '<div class="card" style="padding:16px"><h3 class="h-md" style="margin-bottom:6px">Shipping by region</h3>' + regs + '<p class="small muted" style="margin-top:8px">Fuan orders combined with Mammoth have no shipping fee, so they are not counted here.</p></div>' +
+    '<div class="card" style="padding:16px"><h3 class="h-md" style="margin-bottom:6px">Item sales (for your supplier)</h3><div class="iline"><span>Expected</span><b class="num">' + fmt(S(live, o => o.subtotal)) + '</b></div><div class="iline"><span>Collected (orders marked Paid)</span><b class="num">' + fmt(S(paid, o => o.subtotal)) + '</b></div></div>';
 }
 
 /* --- products tab */
@@ -1331,9 +1488,15 @@ function adminSettings() {
     '<div class="card"><h2 class="h-md" style="margin-bottom:12px">Order forms</h2>' +
     inp('s_mammothTitle', 'Mammoth form title', s.mammothTitle) + yn('s_mammothOpen', 'Mammoth open for new orders?', s.mammothOpen) +
     inp('s_fuanTitle', 'Fuan form title', s.fuanTitle) + yn('s_fuanOpen', 'Fuan open for new orders?', s.fuanOpen) + '</div>' +
+    '<div class="card"><h2 class="h-md" style="margin-bottom:12px">Yixing order form</h2>' +
+    inp('s_yixTitle', 'Yixing form title', s.yixTitle) + yn('s_yixOpen', 'Yixing open for new orders?', s.yixOpen) +
+    '<div class="two">' + inp('s_yixPackaging', 'Packaging fee per order (₱)', s.yixPackaging, 'number') + inp('s_yixLabelFee', 'Label fee per vial (₱)', s.yixLabelFee, 'number', '0 means labels are free.') + '</div>' +
+    '<div class="two">' + inp('s_yixShipLuzon', 'Luzon shipping (₱)', s.yixShipLuzon, 'number') + inp('s_yixShipVisayas', 'Visayas shipping (₱)', s.yixShipVisayas, 'number') + '</div>' + inp('s_yixShipMindanao', 'Mindanao shipping (₱)', s.yixShipMindanao, 'number', 'Local SF is worked out from the buyer\'s region. You can still fix a different amount on any single order.') +
+    '<div class="field"><label class="f" for="s_yixNote">Note shown on the Yixing form</label><textarea class="in" id="s_yixNote">' + esc(s.yixNote || '') + '</textarea></div>' +
+    '<p class="hint">Yixing prices come from the Yixing Pricelist tab (USD × the rate in cell G2). Open Yixing → Items &amp; prices to change them here.</p></div>' +
     '<div class="card"><h2 class="h-md" style="margin-bottom:12px">Messages and contact</h2>' +
     inp('s_businessName', 'Business name', s.businessName) + inp('s_adminWhatsapp', 'Admin WhatsApp number', s.adminWhatsapp.replace(/^63/, '0'), 'tel', 'Invoices are sent to this number.') +
-    inp('s_communityLink', 'WhatsApp community link', s.communityLink) + inp('s_customerViewLink', 'Customer order-board link (read-only sheet)', s.customerViewLink || '', 'text', 'Buyers see this on the welcome page. Leave empty to hide it.') +
+    inp('s_communityLink', 'WhatsApp community link', s.communityLink) + inp('s_customerViewLink', 'Customer order-board link (read-only sheet)', s.customerViewLink || '', 'text', 'Buyers see this on the welcome page. Leave empty to hide it.') + inp('s_siteLink', 'Website link (for Edit my order links in the sheet)', s.siteLink || '', 'text', 'Paste the address buyers use to open this order form. Each order in the customer sheet then gets an Edit my order link. Leave empty to hide them.') +
     '<div class="field"><label class="f" for="s_announcement">Welcome-page announcement</label><textarea class="in" id="s_announcement">' + esc(s.announcement) + '</textarea><p class="hint">Leave empty to hide the banner.</p></div>' +
     '<div class="field"><label class="f" for="s_paymentNote">Payment note after an order is saved</label><textarea class="in" id="s_paymentNote">' + esc(s.paymentNote) + '</textarea></div></div>' +
     '<div class="card"><h2 class="h-md" style="margin-bottom:12px">Payment details and QR code</h2>' +
@@ -1370,7 +1533,7 @@ function adminSettings() {
     const g = id => $('#' + id).value;
     const body = {usdRate: g('s_usdRate'), packagingFee: g('s_packagingFee'), shipLuzon: g('s_shipLuzon'), shipVisayas: g('s_shipVisayas'), shipMindanao: g('s_shipMindanao'),
       fuanCombinedWaivesPackaging: g('s_fuanCombinedWaivesPackaging'), singleVialInBunuan: g('s_singleVialInBunuan'), mammothTitle: g('s_mammothTitle'), mammothOpen: g('s_mammothOpen'), fuanTitle: g('s_fuanTitle'), fuanOpen: g('s_fuanOpen'),
-      businessName: g('s_businessName'), adminWhatsapp: g('s_adminWhatsapp'), communityLink: g('s_communityLink'), customerViewLink: g('s_customerViewLink'), announcement: g('s_announcement'), paymentNote: g('s_paymentNote')};
+      businessName: g('s_businessName'), adminWhatsapp: g('s_adminWhatsapp'), communityLink: g('s_communityLink'), customerViewLink: g('s_customerViewLink'), siteLink: g('s_siteLink'), yixTitle: g('s_yixTitle'), yixOpen: g('s_yixOpen'), yixPackaging: g('s_yixPackaging'), yixShipLuzon: g('s_yixShipLuzon'), yixShipVisayas: g('s_yixShipVisayas'), yixShipMindanao: g('s_yixShipMindanao'), yixLabelFee: g('s_yixLabelFee'), yixNote: g('s_yixNote'), announcement: g('s_announcement'), paymentNote: g('s_paymentNote')};
     try { await adminCall('adminSaveSettings', body); await refreshPublic(); adminView(); toast('Settings saved. The website is updated'); }
     catch (e) { btn.disabled = false; btn.textContent = 'Save settings'; $('#serr').innerHTML = '<div class="alert err" role="alert">' + esc(e.message) + '</div>'; }
   };
@@ -1381,6 +1544,337 @@ function adminSettings() {
 }
 async function refreshPublic() {
   try { const b = await call('bootstrap'); S.cfg = b.settings; S.products = b.products; S.categories = b.categories || []; S.kits = b.kits; } catch (e) {}
+}
+
+/* =================================================================== YIXING (customer) */
+S.yix = {products: [], cart: {}, q: '', draft: null, editing: null, order: null, saved: '', pend: false};
+const YKEY = (c, u) => c + '|' + u;
+const yixPrice = (p, u) => u === 'Kit' ? p.kitPrice : p.vialPrice;
+function yixBlank() { return {name: '', phone: store.get('blvc_phone', ''), email: store.get('blvc_email', ''), emailInv: false, region: '', address: '', labels: null, note: ''}; }
+function yixCalc() {
+  const Y = S.yix, cfg = S.cfg.yix, items = [];
+  Object.keys(Y.cart).forEach(k => {
+    const q = Y.cart[k]; if (!(q > 0)) return;
+    const [code, unit] = k.split('|'), p = Y.products.find(x => x.code === code); if (!p) return;
+    const old = Y.editing && Y.editing.items.find(i => i.code === code && i.unit === unit);
+    const price = old ? old.price : yixPrice(p, unit);
+    items.push({p, code, unit, q, price, total: Math.round(q * price * 100) / 100, vials: q * (unit === 'Kit' ? p.per : 1)});
+  });
+  const sub = Math.round(items.reduce((a, i) => a + i.total, 0) * 100) / 100, vials = items.reduce((a, i) => a + i.vials, 0);
+  const label = Y.draft && Y.draft.labels ? Math.round(cfg.labelFee * vials * 100) / 100 : 0;
+  const reg = Y.draft && Y.draft.region, ship = Y.editing && Y.editing.shipManual ? Y.editing.shipping : (reg ? (cfg.ship[reg] || 0) : 0);
+  return {items, sub, vials, packaging: cfg.packaging, label, ship, reg, total: Math.round((sub + cfg.packaging + label + ship) * 100) / 100};
+}
+async function yixStart() {
+  const info = S.cfg.yix;
+  S.yix.cart = {}; S.yix.q = ''; S.yix.editing = null; S.yix.draft = yixBlank(); S.yix.saved = '';
+  $('#app').innerHTML = '<div class="loading"><div class="spin"></div></div>';
+  try { const b = await call('yixBootstrap'); S.yix.products = b.products; S.cfg = b.settings; } catch (e) { toast(e.message); go('welcome'); return; }
+  go('yixshop');
+}
+function yixShopView() {
+  const Y = S.yix, f = S.cfg.yix, e = Y.editing;
+  $('#app').innerHTML =
+    '<div class="top"><button class="iconbtn" id="back" aria-label="Back">' + ICON.back + '</button><div class="grow"><div class="ttl">' + esc(f.title) + '</div><div class="sub">' + (e ? 'Editing ' + esc(e.ref) : 'Pick per kit or per vial') + '</div></div></div>' +
+    (!f.open && !e ? '<div class="alert err">This order form is closed for new orders right now.</div>' : '') +
+    (f.note ? '<div class="alert warn">' + esc(f.note) + '</div>' : '') +
+    '<div class="search"><span>' + ICON.search + '</span><input class="in" id="q" type="search" placeholder="Search an item, e.g. retatrutide" aria-label="Search items" value="' + esc(Y.q) + '"></div>' +
+    '<div id="list"></div><div id="cartbar"></div>';
+  $('#back').onclick = () => go(e ? 'yixdone' : 'welcome');
+  $('#q').oninput = ev => { Y.q = ev.target.value; yixList(); };
+  $('#list').onclick = yixListClick; $('#list').onchange = yixListChange;
+  yixList(); yixCartBar();
+}
+function yixStep(p, u) {
+  const q = S.yix.cart[YKEY(p.code, u)] || 0, price = yixPrice(p, u);
+  return '<div class="vrow" style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid var(--line)"><div><b>' + (p.per === 1 ? 'Each' : u === 'Kit' ? 'Per kit' : 'Per vial') + '</b>' +
+    (u === 'Kit' ? ' <span class="muted small">(' + p.per + ' vials)</span>' : '') + '<br><span class="num">' + fmt(price) + '</span></div>' +
+    '<div class="stepper"><button type="button" data-y="-" data-k="' + esc(YKEY(p.code, u)) + '" aria-label="One less">−</button><input type="number" inputmode="numeric" min="0" max="500" value="' + q + '" data-yq="' + esc(YKEY(p.code, u)) + '" aria-label="Quantity ' + (u === 'Kit' ? 'kits' : 'vials') + '"><button type="button" data-y="+" data-k="' + esc(YKEY(p.code, u)) + '" aria-label="One more">+</button></div></div>';
+}
+function yixList() {
+  const Y = S.yix, q = Y.q.trim().toLowerCase();
+  const list = Y.products.filter(p => !q || (p.name + ' ' + p.spec + ' ' + p.code).toLowerCase().includes(q));
+  $('#list').innerHTML = list.length ? list.map(p => {
+    const n = (Y.cart[YKEY(p.code, 'Kit')] || 0) + (Y.cart[YKEY(p.code, 'Vial')] || 0);
+    if (p.locked) {
+      const kept = n > 0;
+      return '<div class="card" style="padding:14px 16px;margin-bottom:12px;opacity:' + (kept ? '1' : '.72') + ';background:var(--pearl)"><div class="row spread"><div><b class="serif" style="font-size:20px">' + esc(p.name) + '</b><br><span class="muted small">' + esc(p.spec) + '</span></div>' +
+        '<span class="tag kit" style="white-space:nowrap">' + ICON.lock + ' Locked</span></div><p class="small" style="margin-top:8px;color:var(--mauve)"><b>' + esc(p.note || 'Not available right now') + '</b></p>' +
+        (kept ? yixStep(p, 'Kit') + (p.per > 1 ? yixStep(p, 'Vial') : '') + '<p class="hint">Already in your order. You can lower or remove it, but not add more.</p>' : '') + '</div>';
+    }
+    return '<div class="card" style="padding:14px 16px;margin-bottom:12px"><div class="row spread"><div><b class="serif" style="font-size:20px">' + esc(p.name) + '</b><br><span class="muted small">' + esc(p.spec) + '</span></div>' +
+      (n ? '<span class="tag cart">in order</span>' : '') + '</div>' + (p.note ? '<p class="small" style="margin-top:6px;color:var(--berry-d)"><b>' + esc(p.note) + '</b></p>' : '') +
+      (p.per === 1 ? yixStep(p, 'Vial') : yixStep(p, 'Kit') + yixStep(p, 'Vial')) + '</div>';
+  }).join('') : (Y.products.length ? '<div class="card center"><p class="h-md">No match</p><p class="muted" style="margin-top:6px">Try another spelling, or clear the search.</p></div>' : '<div class="card center"><p class="h-md">Prices are coming soon</p><p class="muted" style="margin-top:6px">The Yixing price list has not been posted yet. Please check back soon, or message us on WhatsApp.</p></div>');
+}
+function yixSetQty(k, q) {
+  q = Math.max(0, Math.min(500, Math.floor(Number(q) || 0)));
+  if (q) S.yix.cart[k] = q; else delete S.yix.cart[k];
+}
+function yixListClick(ev) {
+  const b = ev.target.closest('[data-y]'); if (!b) return;
+  const k = b.dataset.k, cur = S.yix.cart[k] || 0, pr = S.yix.products.find(x => x.code === k.split('|')[0]);
+  if (pr && pr.locked && b.dataset.y === '+') { toast('That item is locked right now'); return; }
+  yixSetQty(k, cur + (b.dataset.y === '+' ? 1 : -1));
+  const inp = document.querySelector('[data-yq="' + k.replace(/"/g, '\\"') + '"]'); if (inp) inp.value = S.yix.cart[k] || 0;
+  yixCartBar();
+}
+function yixListChange(ev) {
+  const i = ev.target.closest('[data-yq]'); if (!i) return;
+  const pr = S.yix.products.find(x => x.code === i.dataset.yq.split('|')[0]);
+  if (pr && pr.locked && Number(i.value) > (S.yix.cart[i.dataset.yq] || 0)) { i.value = S.yix.cart[i.dataset.yq] || 0; toast('That item is locked right now'); return; }
+  yixSetQty(i.dataset.yq, i.value); i.value = S.yix.cart[i.dataset.yq] || 0; yixCartBar();
+}
+function yixCartBar() {
+  const c = yixCalc(), el = $('#cartbar'); if (!el) return;
+  if (!c.items.length) { el.innerHTML = ''; return; }
+  const sum = '<b>' + c.items.length + ' item' + (c.items.length === 1 ? '' : 's') + '</b> · ' + c.vials + ' vial' + (c.vials === 1 ? '' : 's') + '<br><span class="muted small">Subtotal ' + fmt(c.sub) + '</span>';
+  const cur = el.querySelector('.sum');
+  if (cur) { cur.innerHTML = sum; return; }       // update in place so a tap on Review order is never lost
+  el.innerHTML = '<div class="cartbar"><div class="in-bar"><div class="sum">' + sum + '</div><button class="btn" id="toDetails">Review order</button></div></div>';
+  $('#toDetails').onclick = () => go('yixdetails');
+}
+function yixSummary() {
+  const c = yixCalc(), d = S.yix.draft;
+  return c.items.map(i => '<div class="item"><div class="line" style="padding:0"><div><b>' + esc(i.p.name) + '</b><br><span class="muted small">' + esc(i.p.spec) + '</span></div><div class="num" style="text-align:right"><b>' + fmt(i.total) + '</b><br><span class="muted small">' + i.q + ' ' + i.unit.toLowerCase() + (i.q === 1 ? '' : 's') + ' × ' + fmt(i.price) + '</span></div></div></div>').join('') +
+    '<div class="divider"></div><div class="line"><span>Items subtotal</span><span class="num">' + fmt(c.sub) + '</span></div><div class="line"><span>Packaging fee</span><span class="num">' + fmt(c.packaging) + '</span></div>' +
+    (d.labels && c.label ? '<div class="line"><span>Vial labels &amp; numbers</span><span class="num">' + fmt(c.label) + '</span></div>' : '') +
+    '<div class="line"><span>Shipping (Local SF)' + (c.reg ? ' · ' + c.reg : '') + '</span><span class="num">' + (c.reg ? fmt(c.ship) : '<span class="muted small">pick a region</span>') + '</span></div><div class="line total"><span>Total</span><span class="num">' + fmt(c.total) + '</span></div>';
+}
+function yixDetailsView() {
+  const Y = S.yix, d = Y.draft, e = Y.editing, c = yixCalc(), lockI = e && !e.editItems;
+  if (!c.items.length && !lockI) { go('yixshop'); toast('Add at least one item first'); return; }
+  const f = S.cfg.yix;
+  const seg = (id, opts, cur) => '<div class="seg two" id="' + id + '">' + opts.map(o => '<button class="opt" type="button" data-v="' + o[0] + '" aria-pressed="' + (cur === o[0]) + '"' + (lockI && id === 'lab' ? ' disabled' : '') + '>' + o[1] + (o[2] ? '<small>' + o[2] + '</small>' : '') + '</button>').join('') + '</div>';
+  $('#app').innerHTML =
+    '<div class="top"><button class="iconbtn" id="back" aria-label="Back">' + ICON.back + '</button><div class="grow"><div class="ttl">Your details</div><div class="sub">' + (e ? 'Editing ' + esc(e.ref) : esc(f.title)) + '</div></div></div>' +
+    (e && e.lockAddress ? '<div class="alert warn">' + esc(e.lockAddress) + '</div>' : '') +
+    (e && e.lockItems ? '<div class="alert warn">' + esc(e.lockItems) + '</div>' : '') +
+    '<div class="card"><div class="field"><label class="f" for="nm">Your name</label><input class="in" id="nm" autocomplete="name" placeholder="Full name" value="' + esc(d.name) + '"></div>' +
+    '<div class="field"><label class="f" for="ph">WhatsApp number</label><input class="in" id="ph" type="tel" inputmode="tel" autocomplete="tel" placeholder="0917 123 4567" value="' + esc(d.phone) + '"><p class="hint">' + (e ? 'This number identifies your order and cannot be changed here.' : 'We message you here about your shipping fee and tracking.') + '</p></div>' +
+    '<div class="field"><label class="f" for="em">Email <span class="muted">(optional)</span></label><input class="in" id="em" type="email" autocomplete="email" placeholder="you@gmail.com" value="' + esc(d.email) + '">' +
+    '<label class="chk" style="display:flex;gap:10px;align-items:center;margin-top:10px;font-size:15px"><input type="checkbox" id="ei"' + (d.emailInv ? ' checked' : '') + ' style="width:22px;height:22px"> Email me my invoice and a shipping notice</label></div>' +
+    '<div class="field"><label class="f">Where are we shipping?</label>' + seg('reg', REGIONS.map(r => [r, r, fmt(f.ship[r]) + ' shipping']), d.region) + '</div>' +
+    '<div class="field"><label class="f" for="ad">Complete address</label><textarea class="in" id="ad" rows="3" placeholder="House/unit no., street, barangay, city, province, zip code">' + esc(d.address) + '</textarea><p class="hint">Only the region is shown on the public order board. Your full address stays private.</p></div>' +
+    '<div class="field"><label class="f">Vial labels &amp; numbers?</label>' + seg('lab', [['Yes', 'Yes', 'Payment needed now'], ['No', 'No', 'Pay later']], d.labels === null ? '' : d.labels ? 'Yes' : 'No') +
+    '<p class="hint">' + (f.labelFee > 0 ? 'Labels cost ' + fmt(f.labelFee) + ' per vial. ' : '') + 'Choose <b>Yes</b> and your payment is required now, so our bank details appear after you place the order. Choose <b>No</b> and you can pay later.</p></div>' +
+    '<div class="field" style="margin-bottom:0"><label class="f" for="nt">Notes <span class="muted">(optional)</span></label><textarea class="in" id="nt" placeholder="Anything we should know?">' + esc(d.note) + '</textarea></div></div>' +
+    (e && e.editItems ? '<button class="btn ghost" id="chItems" style="margin-bottom:12px">Change items</button>' : '') +
+    '<div class="card"><h2 class="h-md" style="margin-bottom:6px">Your order</h2><div id="summary"></div></div>' +
+    '<div id="err"></div><button class="btn" id="place">' + (e ? 'Save changes' : 'Place my order') + '</button>' +
+    '<p class="small muted center" style="margin-top:12px">Your invoice and reference number appear right after you place your order.</p>';
+  const sumEl = () => { const s = $('#summary'); if (s) s.innerHTML = lockI ? yixLockedSummary() : yixSummary(); };
+  $('#back').onclick = () => go(lockI ? 'yixdone' : 'yixshop');
+  $('#nm').oninput = ev => { d.name = ev.target.value; };
+  const ph = $('#ph'); ph.oninput = ev => { d.phone = ev.target.value; };
+  if (e) { ph.readOnly = true; ph.value = e.phone; d.phone = e.phone; }
+  $('#em').oninput = ev => { d.email = ev.target.value; };
+  $('#ei').onchange = ev => { d.emailInv = ev.target.checked; };
+  $('#ad').oninput = ev => { d.address = ev.target.value; };
+  $('#nt').oninput = ev => { d.note = ev.target.value; };
+  $('#reg').onclick = ev => { const b = ev.target.closest('[data-v]'); if (!b) return; d.region = b.dataset.v; document.querySelectorAll('#reg .opt').forEach(x => x.setAttribute('aria-pressed', x === b)); sumEl(); };
+  $('#lab').onclick = ev => { const b = ev.target.closest('[data-v]'); if (!b || b.disabled) return; d.labels = b.dataset.v === 'Yes'; document.querySelectorAll('#lab .opt').forEach(x => x.setAttribute('aria-pressed', x === b)); sumEl(); };
+  if ($('#chItems')) $('#chItems').onclick = () => go('yixshop');
+  if (lockI) { $('#lab').querySelectorAll('.opt').forEach(x => x.disabled = true); }
+  sumEl();
+  $('#place').onclick = yixPlace;
+}
+function yixLockedSummary() {
+  const o = S.yix.editing;
+  return o.items.map(i => '<div class="line"><span>' + esc(i.name) + ' <span class="muted small">' + i.qty + ' ' + i.unit.toLowerCase() + (i.qty === 1 ? '' : 's') + '</span></span><b class="num">' + fmt(i.total) + '</b></div>').join('') +
+    '<div class="divider"></div><div class="line total"><span>Total</span><span class="num">' + fmt(o.total) + '</span></div>';
+}
+async function yixPlace() {
+  const Y = S.yix, d = Y.draft, e = Y.editing, btn = $('#place'), err = $('#err');
+  err.innerHTML = '';
+  const fail = m => { err.innerHTML = '<div class="alert err" role="alert">' + esc(m) + '</div>'; err.scrollIntoView({behavior: 'smooth', block: 'center'}); };
+  if (d.name.trim().length < 2) return fail('Please add your name so we know who this order is for.');
+  if (!d.phone.trim()) return fail('Please add your WhatsApp number.');
+  if (!d.region) return fail('Please pick Luzon, Visayas or Mindanao.');
+  if (d.address.trim().length < 10) return fail('Please add your complete address (house or unit, street, barangay, city, province and zip code).');
+  if (d.labels === null && !(e && !e.editItems)) return fail('Please choose whether you want vial labels and numbers.');
+  if (d.emailInv && !d.email.trim()) return fail('Add your email to receive the invoice, or untick the box.');
+  const c = yixCalc();
+  const payload = {name: d.name, phone: d.phone, email: d.email, emailInv: d.emailInv, region: d.region, address: d.address, note: d.note, labels: d.labels === null ? (e ? e.labels : false) : d.labels};
+  if (!(e && !e.editItems)) payload.items = c.items.map(i => ({code: i.code, unit: i.unit, qty: i.q}));
+  btn.disabled = true; btn.textContent = 'Saving your order…';
+  try {
+    const r = e ? await call('yixUpdate', e.ref, e.phone, payload) : await call('yixSubmit', payload);
+    S.yix.order = S.order = r.order; S.yix.products = r.products || S.yix.products; S.yix.saved = e ? 'updated' : 'new'; S.yix.editing = null;
+    store.set('blvc_phone', d.phone); if (d.email) store.set('blvc_email', d.email);
+    const rec = store.get('blvc_recent', []).filter(x => x.ref !== r.order.ref); rec.unshift({ref: r.order.ref, form: 'YIXING'}); store.set('blvc_recent', rec.slice(0, 5));
+    go('yixdone'); toast(e ? 'Your order is updated' : 'Your order is saved');
+  } catch (ex) { fail(ex.message); btn.disabled = false; btn.textContent = e ? 'Save changes' : 'Place my order'; }
+}
+const YSTEPS = ['Received', 'Confirmed', 'Packed', 'Shipped'];
+function yixTracker(o) {
+  const at = Math.max(0, YSTEPS.indexOf(o.status === 'Completed' ? 'Shipped' : o.status));
+  return '<div style="display:flex;gap:6px;margin:12px 0">' + YSTEPS.map((s, i) => '<div style="flex:1;text-align:center"><div style="height:8px;border-radius:99px;background:' + (i <= at ? 'var(--berry)' : 'var(--blush)') + '"></div><div class="small ' + (i <= at ? '' : 'muted') + '" style="margin-top:4px;font-weight:' + (i === at ? '700' : '500') + '">' + s + '</div></div>').join('') + '</div>';
+}
+function yixReceipt(o) {
+  return '<div class="receipt"><div class="center"><div class="serif h-md">' + esc(S.cfg.businessName) + '</div><div class="muted small">' + esc(o.formTitle) + ' · ' + when(o.createdAt) + '</div></div><div class="divider"></div>' +
+    '<div class="line"><span class="muted">Name</span><b>' + esc(o.name) + '</b></div><div class="line"><span class="muted">WhatsApp</span><b>' + esc(o.phone) + '</b></div>' +
+    (o.email ? '<div class="line"><span class="muted">Email</span><b>' + esc(o.email) + '</b></div>' : '') +
+    '<div class="line"><span class="muted">Ship to</span><b style="text-align:right;max-width:70%">' + esc(o.address) + '<br><span class="muted small">' + esc(o.region) + '</span></b></div>' +
+    '<div class="line"><span class="muted">Vial labels &amp; numbers</span><b>' + (o.labels ? 'Yes' : 'No') + '</b></div><div class="divider"></div>' +
+    o.items.map(it => '<div class="item"><div class="line" style="padding:0"><div><b>' + esc(it.name) + '</b><br><span class="muted small">' + esc(it.spec) + '</span></div><div class="num" style="text-align:right"><b>' + fmt(it.total) + '</b><br><span class="muted small">' + it.qty + ' ' + it.unit.toLowerCase() + (it.qty === 1 ? '' : 's') + ' × ' + fmt(it.price) + '</span></div></div></div>').join('') +
+    '<div class="divider"></div><div class="line"><span>Items subtotal</span><span class="num">' + fmt(o.subtotal) + '</span></div><div class="line"><span>Packaging fee</span><span class="num">' + fmt(o.packaging) + '</span></div>' +
+    (o.labels ? '<div class="line"><span>Vial labels &amp; numbers</span><span class="num">' + fmt(o.labelFee) + '</span></div>' : '') +
+    '<div class="line"><span>Shipping (Local SF) · ' + esc(o.region) + '</span><span class="num">' + fmt(o.shipping) + '</span></div>' +
+    '<div class="line total"><span>Total</span><span class="num">' + fmt(o.total) + '</span></div>' +
+    '<div class="line"><span class="muted">Paid / awaiting check</span><span class="num">' + fmt(o.paid) + '</span></div>' +
+    '<div class="center" style="margin-top:10px"><span class="tag plain">Payment: ' + esc(o.pay) + '</span><span class="tag plain">' + esc(o.status) + '</span></div>' +
+    (o.note ? '<p class="small muted" style="margin-top:12px">Note: ' + esc(o.note) + '</p>' : '') + '</div>';
+}
+function yixDoneView() {
+  const o = S.yix.order || S.order; if (!o) { go('welcome'); return; }
+  const fresh = S.yix.saved, shipped = o.status === 'Shipped' || o.status === 'Completed';
+  $('#app').innerHTML =
+    '<section class="card stitched center">' + (fresh ? bow('success-bow') : '') + '<div class="script" style="font-size:44px">' + (fresh === 'new' ? 'Thank you, ' + esc(o.name.split(' ')[0]) : '') + '</div>' +
+    '<h1 class="h-lg" style="margin:4px 0 14px">' + (fresh === 'new' ? 'Your order is saved' : fresh === 'updated' ? 'Your order is updated' : 'Your order') + '</h1>' +
+    '<div class="refbox"><div class="muted small">Reference number</div><div class="code" id="refcode">' + esc(o.ref) + '</div><button class="btn sm soft" id="copyRef" style="margin:10px auto 0">' + ICON.copy + ' Copy number</button></div>' +
+    '<p class="small muted" style="margin-top:12px">Keep this number. With your WhatsApp number, it lets you fix your address or check your order here anytime.</p>' + yixTracker(o) + '</section>' +
+    (shipped ? '<div class="alert ok" style="background:#E8F6EC;border-color:#9ED3AE"><b>Your parcel has shipped' + (o.courier ? ' with ' + esc(o.courier) : '') + '.</b>' + (o.tracking ? '<br>Tracking number: <b id="trk">' + esc(o.tracking) + '</b> <button class="linkbtn" id="copyTrk">Copy</button>' : '') + (o.shippedAt ? '<br><span class="small muted">Shipped on ' + when(o.shippedAt) + '</span>' : '') + '</div>'
+      : (o.courier || o.tracking ? '<div class="alert warn">Courier: <b>' + esc(o.courier || 'to be assigned') + '</b>' + (o.tracking ? ' · Tracking <b>' + esc(o.tracking) + '</b>' : '') + '</div>' : '')) +
+    (o.payNow ? '<div class="card" id="paycard" style="border-color:var(--rose)"><h2 class="h-md" style="margin-bottom:4px">Payment is required for vial labels</h2><p class="small muted" style="margin-bottom:10px">Please pay <b>' + fmt(o.due) + '</b> using the details below, then upload your screenshot.</p><div id="bank"><div class="spin" style="margin:10px auto"></div></div><button class="btn" id="payBtn2" style="margin-top:12px">' + ICON.card + ' Upload payment proof</button></div>'
+      : (o.status !== 'Removed' && o.due > 0.004 ? '<div class="card"><h2 class="h-md" style="margin-bottom:4px">Ready to pay?</h2><p class="small muted" style="margin-bottom:12px">Amount due: <b>' + fmt(o.due) + '</b>. Pay whenever you are ready and upload your screenshot here.</p><button class="btn" id="payBtn2">' + ICON.card + ' Upload payment proof</button><div id="paylist" style="margin-top:12px"></div></div>' : '')) +
+    '<div class="stack" style="margin-top:12px"><a class="btn wa" href="' + esc(waWeb(o.invoice)) + '" target="_blank" rel="noopener">' + ICON.wa + ' Send invoice on WhatsApp</a>' +
+    '<button class="btn" id="copyInv">' + ICON.copy + ' Copy invoice</button></div><div style="height:16px"></div>' + yixReceipt(o) +
+    (o.lockAddress ? '<div class="alert warn" style="margin-top:16px">' + esc(o.lockAddress) + '</div>' : '') +
+    (o.lockItems && !o.lockAddress ? '<div class="alert warn" style="margin-top:16px">' + esc(o.lockItems) + '</div>' : '') +
+    '<div class="stack" style="margin-top:18px">' + (o.editAddress ? '<button class="btn ghost" id="editBtn">' + (o.editItems ? 'Edit this order' : 'Edit address &amp; details') + '</button>' : '') +
+    (o.editItems ? '<button class="btn danger" id="rmBtn">' + ICON.trash + ' Remove this order</button>' : '') + '<button class="btn soft" id="homeBtn">Back to home</button></div>';
+  $('#copyRef').onclick = () => copyText(o.ref, MSG.copiedRef);
+  $('#copyInv').onclick = () => copyText(o.invoice, MSG.copiedInv);
+  if ($('#copyTrk')) $('#copyTrk').onclick = () => copyText(o.tracking, 'Tracking number copied');
+  $('#homeBtn').onclick = () => { S.yix.saved = ''; go('welcome'); };
+  if ($('#payBtn2')) $('#payBtn2').onclick = () => { S.yix.pend = true; openPay(o); };
+  if ($('#bank')) call('getPayInfo').then(i => {
+    const el = $('#bank'); if (!el) return;
+    el.innerHTML = (i.qr ? '<img class="qrimg" src="' + esc(i.qr) + '" alt="Payment QR code">' : '') + (i.details ? '<div class="receipt pre" style="text-align:left">' + esc(i.details) + '</div><button class="btn sm ghost" id="cpDet" style="margin-top:8px">' + ICON.copy + ' Copy payment details</button>' : (i.qr ? '' : '<p class="muted">Payment details will be sent on WhatsApp.</p>'));
+    if ($('#cpDet')) $('#cpDet').onclick = () => copyText(i.details, 'Payment details copied');
+  }).catch(() => { const el = $('#bank'); if (el) el.innerHTML = '<p class="muted">Payment details will be sent on WhatsApp.</p>'; });
+  if ($('#paylist')) call('orderPayments', o.ref, o.phone).then(list => {
+    const el = $('#paylist'); if (!el || !list.length) return;
+    el.innerHTML = '<p class="small" style="font-weight:700;margin-bottom:6px">Your uploads</p>' + list.map(x => '<div class="line small"><span>' + esc(x.id) + ' · ' + fmt(x.amount) + '</span><span class="tag ' + (x.status === 'Verified' ? 'ok' : x.status === 'Rejected' ? 'bad' : 'plain') + '">' + esc(x.status) + '</span></div>').join('');
+  }).catch(() => {});
+  if (o.editAddress) $('#editBtn').onclick = yixBeginEdit;
+  if (o.editItems && $('#rmBtn')) $('#rmBtn').onclick = yixRemove;
+  if (S.yix.pend && !fresh) { S.yix.pend = false; call('yixLookup', o.ref, o.phone).then(r => { if (S.view === 'yixdone' && (r.order.pay !== o.pay || r.order.paid !== o.paid)) { S.yix.order = S.order = r.order; yixDoneView(); } }).catch(() => {}); }
+}
+function yixBeginEdit() {
+  const o = S.yix.order, Y = S.yix;
+  Y.cart = {}; o.items.forEach(i => { Y.cart[YKEY(i.code, i.unit)] = i.qty; });
+  Y.editing = o; Y.saved = '';
+  Y.draft = {name: o.name, phone: o.phone, email: o.email || '', emailInv: !!o.emailInv, region: o.region, address: o.address, labels: !!o.labels, note: o.note || ''};
+  go('yixdetails');
+}
+async function yixRemove() {
+  const o = S.yix.order;
+  const yes = await confirmBox('Remove this order?', 'This cancels your order. You can always place a new one.', 'Yes, remove it', 'Keep my order');
+  if (!yes) return;
+  const b = $('#rmBtn'); b.disabled = true;
+  try { await call('yixRemove', o.ref, o.phone); S.yix.order = S.order = null; store.set('blvc_recent', store.get('blvc_recent', []).filter(x => x.ref !== o.ref)); go('welcome'); toast('Order removed'); }
+  catch (e) { b.disabled = false; toast(e.message); }
+}
+
+/* =================================================================== YIXING (admin) */
+const YCO = ['', 'J&T', 'Lalamove'];
+function adminYixing() {
+  const d = A.data, Y = A.y || (A.y = {q: '', f: 'todo'});
+  const live = d.yix.filter(o => o.status !== 'Removed');
+  const total = live.reduce((a, o) => a + o.total, 0), paid = live.reduce((a, o) => a + o.paid, 0);
+  const toShip = live.filter(o => o.status !== 'Shipped' && o.status !== 'Completed').length;
+  const chips = [['todo', 'To ship'], ['pay', 'Needs payment'], ['shipped', 'Shipped'], ['all', 'All']];
+  $('#tab').innerHTML =
+    '<div class="stats"><div class="stat"><b>' + live.length + '</b><span>orders</span></div><div class="stat"><b>' + toShip + '</b><span>to ship</span></div><div class="stat"><b>' + live.filter(o => o.payNow).length + '</b><span>label payments due</span></div></div>' +
+    '<div class="sumline"><span>Total <b>' + fmt(total) + '</b></span><span>Paid <b>' + fmt(paid) + '</b></span><span>Balance <b>' + fmt(total - paid) + '</b></span></div>' +
+    '<div class="row" style="gap:8px;margin-bottom:10px"><button class="btn sm soft grow" id="yprods">Items &amp; prices</button><a class="btn sm ghost grow" style="text-decoration:none;text-align:center" href="#" id="ycopy">Copy to-ship list</a></div>' +
+    '<div class="search" style="margin:0 0 10px"><span>' + ICON.search + '</span><input class="in" id="yq" type="search" placeholder="Search name, number or reference" value="' + esc(Y.q) + '"></div>' +
+    '<div class="chips" id="ychips">' + chips.map(c => '<button class="chip" data-f="' + c[0] + '" aria-pressed="' + (Y.f === c[0]) + '">' + c[1] + '</button>').join('') + '</div><div id="ylist"></div>';
+  const draw = () => {
+    const q = Y.q.trim().toLowerCase();
+    const rows = d.yix.filter(o => o.status !== 'Removed' && (!q || (o.ref + ' ' + o.name + ' ' + o.phone).toLowerCase().includes(q)) &&
+      (Y.f === 'all' || (Y.f === 'todo' && o.status !== 'Shipped' && o.status !== 'Completed') || (Y.f === 'pay' && o.due > 0.004 && o.pay !== 'Paid') || (Y.f === 'shipped' && (o.status === 'Shipped' || o.status === 'Completed'))));
+    $('#ylist').innerHTML = rows.length ? rows.map(o =>
+      '<div class="ocard" style="cursor:default"><button class="ohead" data-yref="' + esc(o.ref) + '"><div class="row spread"><span class="ref">' + esc(o.ref) + '</span><b class="num">' + fmt(o.total) + '</b></div>' +
+      '<div>' + esc(o.name) + ' <span class="muted">· ' + esc(o.phone) + ' · ' + esc(o.region) + '</span></div>' +
+      '<div style="margin-top:6px"><span class="tag ' + payCls(o.pay) + '" style="margin-left:0">' + esc(o.pay) + '</span><span class="tag plain">' + esc(o.status) + '</span>' +
+      (o.labels ? '<span class="tag ' + (o.payNow ? 'bad' : 'ok') + '">labels' + (o.payNow ? ': payment due' : '') + '</span>' : '') + (o.shipManual ? '<span class="tag kit">shipping fixed</span>' : '') +
+      (o.email ? '<span class="tag plain">' + (o.emailInv ? 'email invoice' : 'email') + '</span>' : '') + (o.courier ? '<span class="tag plain">' + esc(o.courier) + (o.tracking ? ' · ' + esc(o.tracking) : '') + '</span>' : '') + '</div>' +
+      '<div class="muted small" style="margin-top:6px">' + o.items.map(i => esc(i.name) + ' ×' + i.qty + ' ' + i.unit.toLowerCase()).join(' · ') + '</div></button>' +
+      '<div class="qrow">' + sel(PAYS, o.pay, 'data-yp="' + esc(o.ref) + '" aria-label="Payment status"') + sel(STATS, o.status, 'data-ys="' + esc(o.ref) + '" aria-label="Order status"') + '</div></div>').join('')
+      : '<div class="card center"><p class="h-md">Nothing here</p><p class="muted">Yixing orders appear as soon as they are placed.</p></div>';
+    document.querySelectorAll('.ohead[data-yref]').forEach(b => b.onclick = () => openYixOrder(b.dataset.yref));
+    document.querySelectorAll('[data-yp]').forEach(s => s.onchange = async () => { try { await adminCall('adminYixSet', s.dataset.yp, {pay: s.value}); adminView(); toast('Payment status updated'); } catch (e) { adminView(); } });
+    document.querySelectorAll('[data-ys]').forEach(s => s.onchange = async () => {
+      if (s.value === 'Shipped') { openYixOrder(s.dataset.ys, 'Shipped'); return; }
+      try { await adminCall('adminYixSet', s.dataset.ys, {status: s.value}); adminView(); toast('Order status updated'); } catch (e) { adminView(); }
+    });
+  };
+  $('#yq').oninput = e => { Y.q = e.target.value; draw(); };
+  document.querySelectorAll('#ychips [data-f]').forEach(b => b.onclick = () => { Y.f = b.dataset.f; adminYixing(); });
+  $('#yprods').onclick = openYixProducts;
+  $('#ycopy').onclick = ev => {
+    ev.preventDefault();
+    const rows = live.filter(o => o.status !== 'Shipped' && o.status !== 'Completed' && o.status !== 'Completed');
+    copyText(rows.length ? rows.map(o => o.ref + ' · ' + o.name + ' · ' + o.phone + '\n' + o.address + ' (' + o.region + ')\n' + o.items.map(i => '  - ' + i.name + ' ' + i.qty + ' ' + i.unit.toLowerCase()).join('\n') + (o.labels ? '\n  * with vial labels & numbers' : '')).join('\n\n') : 'Nothing to ship right now.', 'Copied the to-ship list');
+  };
+  draw();
+}
+function openYixOrder(ref, preStatus) {
+  const o = A.data.yix.find(x => x.ref === ref); if (!o) return;
+  const E = {pay: o.pay, status: preStatus || o.status, courier: o.courier, tracking: o.tracking, shipping: o.shipping || '', region: o.region, address: o.address, remarks: o.adminRemarks || '', packCost: o.packCost || '', shipCost: o.shipCost || ''};
+  const f = (id, label, val, type, extra) => '<div class="field"><label class="f" for="' + id + '">' + label + '</label><input class="in" id="' + id + '" type="' + (type || 'text') + '" ' + (type === 'number' ? 'step="0.01" min="0"' : '') + ' value="' + esc(val) + '" ' + (extra || '') + '></div>';
+  modal('<div class="row spread"><h2 class="h-lg">' + esc(o.ref) + '</h2><button class="iconbtn" id="mx" aria-label="Close">' + ICON.x + '</button></div>' +
+    '<p class="small muted" style="margin:4px 0 10px">' + esc(o.name) + ' · ' + esc(o.phone) + (o.email ? ' · ' + esc(o.email) : '') + '</p>' +
+    o.items.map(i => '<div class="iline"><span>' + esc(i.name) + ' <span class="muted">' + i.qty + ' ' + i.unit.toLowerCase() + '</span></span><b class="num">' + fmt(i.total) + '</b></div>').join('') +
+    '<div class="iline muted"><span>Packaging</span><span class="num">' + fmt(o.packaging) + '</span></div>' + (o.labels ? '<div class="iline muted"><span>Vial labels &amp; numbers</span><span class="num">' + fmt(o.labelFee) + '</span></div>' : '') +
+    '<div class="iline"><b>Total</b><b class="num" id="ytot">' + fmt(o.total) + '</b></div><div class="iline muted"><span>Paid / awaiting check</span><span class="num">' + fmt(o.paid) + '</span></div>' +
+    '<div class="two" style="margin-top:12px"><div class="field"><label class="f">Payment</label>' + sel(PAYS, E.pay, 'id="ypay"') + '</div><div class="field"><label class="f">Order status</label>' + sel(STATS, E.status, 'id="ystat"') + '</div></div>' +
+    '<div class="two"><div class="field"><label class="f">Courier</label><select class="in" id="ycou">' + YCO.map(x => '<option' + (x === E.courier ? ' selected' : '') + ' value="' + esc(x) + '">' + (x || 'Not yet') + '</option>').join('') + '</select></div>' + f('ytrk', 'Tracking number', E.tracking) + '</div>' +
+    f('yship', 'Shipping fee, Local SF (₱)', E.shipping, 'number') + '<p class="hint" style="margin-top:-8px" id="yhint">' + (o.shipManual ? 'You fixed this amount. Clear the box to go back to the ' + esc(o.region) + ' rate.' : 'Worked out from the region (' + esc(o.region) + '). Type a different amount to fix it for this order.') + '</p>' +
+    '<div class="field"><label class="f">Region</label>' + sel(REGIONS, E.region, 'id="yreg"') + '</div>' +
+    '<div class="field"><label class="f" for="yadd">Complete address</label><textarea class="in" id="yadd" rows="3">' + esc(E.address) + '</textarea></div>' +
+    '<div class="two">' + f('ypc', 'Your packaging cost (₱)', E.packCost, 'number') + f('ysc', 'Your shipping cost (₱)', E.shipCost, 'number') + '</div>' +
+    '<div class="field"><label class="f" for="yrem">Remarks (private)</label><textarea class="in" id="yrem" rows="2">' + esc(E.remarks) + '</textarea></div>' +
+    (o.emailInv && o.email ? '<p class="small muted">Marking this order Shipped emails ' + esc(o.email) + ' the first time.</p>' : '') +
+    '<div id="yerr"></div><button class="btn" id="ysave">Save</button><button class="btn ghost" id="ycancel" style="margin-top:10px">Cancel</button>');
+  $('#mx').onclick = closeModal; $('#ycancel').onclick = closeModal;
+  $('#ysave').onclick = async () => {
+    const b = $('#ysave'); b.disabled = true; b.textContent = 'Saving…';
+    const patch = {pay: $('#ypay').value, status: $('#ystat').value, courier: $('#ycou').value, tracking: $('#ytrk').value, shipping: ($('#yship').value === String(E.shipping) && !o.shipManual) ? undefined : $('#yship').value, region: $('#yreg').value, address: $('#yadd').value, remarks: $('#yrem').value, packCost: $('#ypc').value, shipCost: $('#ysc').value};
+    if (patch.pay === o.pay) delete patch.pay;
+    if (patch.shipping === undefined) delete patch.shipping;
+    try { await adminCall('adminYixSet', o.ref, patch); closeModal(); adminView(); toast('Saved. The sheet is updated'); }
+    catch (e) { b.disabled = false; b.textContent = 'Save'; $('#yerr').innerHTML = '<div class="alert err" role="alert">' + esc(e.message) + '</div>'; }
+  };
+}
+function openYixProducts() {
+  const ps = A.data.yixProducts;
+  const cnt = {Available: 0, Locked: 0, Hidden: 0}; ps.forEach(p => cnt[p.status]++);
+  modal('<div class="row spread"><h2 class="h-lg">Yixing items &amp; prices</h2><button class="iconbtn" id="mx" aria-label="Close">' + ICON.x + '</button></div>' +
+    '<p class="small muted" style="margin:6px 0 4px">Prices are USD × the rate in your Yixing Pricelist tab (cell G2).</p>' +
+    '<p class="small" style="margin:0 0 12px"><b>Available</b> = buyers can order · <b>Locked</b> = shown greyed out with your note, cannot be ordered · <b>Hidden</b> = not shown. (' + cnt.Available + ' available, ' + cnt.Locked + ' locked, ' + cnt.Hidden + ' hidden)</p>' +
+    '<input class="in" id="ypq" type="search" placeholder="Search items" style="margin-bottom:10px"><div id="yplist"></div><button class="btn ghost" id="ydone">Close</button>');
+  $('#mx').onclick = closeModal; $('#ydone').onclick = closeModal;
+  const draw = () => {
+    const q = ($('#ypq').value || '').trim().toLowerCase();
+    $('#yplist').innerHTML = ps.filter(p => !q || (p.name + ' ' + p.spec + ' ' + p.code).toLowerCase().includes(q)).map(p =>
+      '<div class="card" style="padding:12px 14px;margin:0 0 8px"><div class="row spread"><div><b>' + esc(p.name) + '</b><br><span class="muted small">' + esc(p.spec) + ' · ' + (p.usd == null ? 'no price yet' : fmt(p.kitPrice) + ' / kit · ' + fmt(p.vialPrice) + ' / vial') + '</span></div>' +
+      '<span class="tag ' + (p.status === 'Available' ? (p.active ? 'ok' : 'kit') : p.status === 'Locked' ? 'kit' : 'plain') + '">' + (p.status === 'Available' && !p.active ? 'No price' : p.status) + '</span></div>' +
+      '<div class="two" style="margin-top:8px"><div><label class="f small">Price (USD)</label><input class="in" type="number" step="0.01" min="0" data-yu="' + esc(p.code) + '" value="' + (p.usd == null ? '' : p.usd) + '"></div>' +
+      '<div><label class="f small">Status</label>' + sel(['Available', 'Locked', 'Hidden'], p.status, 'data-yst="' + esc(p.code) + '"') + '</div></div>' +
+      '<label class="f small" style="margin-top:6px">Note shown to buyers</label><input class="in" data-yn="' + esc(p.code) + '" placeholder="e.g. Arriving this weekend" value="' + esc(p.note && p.note !== 'Not available right now' && p.note !== 'Price coming soon' ? p.note : '') + '">' +
+      '<button class="btn sm soft" data-ys2="' + esc(p.code) + '" style="margin-top:8px">Save</button></div>').join('') || '<p class="muted">No match.</p>';
+    document.querySelectorAll('[data-ys2]').forEach(b => b.onclick = async () => {
+      const code = b.dataset.ys2, g = a => document.querySelector('[' + a + '="' + code + '"]');
+      b.disabled = true; b.textContent = 'Saving…';
+      try { await adminCall('adminYixProduct', code, g('data-yu').value, g('data-yst').value, g('data-yn').value); await refreshPublic(); const keep = $('#ypq').value; toast('Saved'); adminView(); openYixProducts(); $('#ypq').value = keep; if (keep) $('#ypq').dispatchEvent(new Event('input')); }
+      catch (e) { b.disabled = false; b.textContent = 'Save'; }
+    });
+  };
+  $('#ypq').oninput = draw; draw();
 }
 
 /* =================================================================== BOOT */
@@ -1395,6 +1889,9 @@ async function boot() {
   try {
     const b = await call('bootstrap');
     S.cfg = b.settings; S.products = b.products; S.categories = b.categories || []; S.kits = b.kits; S.view = 'welcome'; render();
+    let pre = window.__REF || ''; try { pre = pre || (new URLSearchParams(location.search).get('ref') || ''); } catch (e2) {}
+    pre = String(pre).toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 30);
+    if (pre) { S.find.ref = pre; S.find.error = ''; go('find'); }
   } catch (e) {
     $('#app').innerHTML = '<div class="card center"><p class="h-lg">We could not open the order form</p><p class="muted" style="margin:8px 0 16px">' + esc(e.message) + '</p><button class="btn" id="retry">Try again</button></div>';
     $('#retry').onclick = () => { $('#app').innerHTML = '<div class="loading"><div class="spin"></div></div>'; boot(); };
