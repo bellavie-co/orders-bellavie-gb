@@ -1828,7 +1828,9 @@ function yixCalc() {
   const reg = mmOk ? Y.mm.region : d.region;
   const ship = mmOk ? 0 : (e && e.shipManual && !d.combined ? e.shipping : (reg ? (cfg.ship[reg] || 0) : 0));
   const packaging = mmOk && cfg.waivePack ? 0 : cfg.packaging;
-  return {items, sub, vials, packaging, label, ship, reg, mmOk, total: Math.round((sub + packaging + label + ship) * 100) / 100};
+  const byCode = {}; items.forEach(i => { byCode[i.code] = byCode[i.code] || {n: i.p.name + (i.p.spec ? ' ' + i.p.spec : ''), v: 0}; byCode[i.code].v += i.vials; });
+  const shorts = Object.values(byCode).filter(x => x.v < cfg.minVials);
+  return {items, sub, vials, shorts, packaging, label, ship, reg, mmOk, total: Math.round((sub + packaging + label + ship) * 100) / 100};
 }
 async function yixStart() {
   S.yix.cart = {}; S.yix.q = ''; S.yix.editing = null; S.yix.draft = yixBlank(); S.yix.saved = ''; S.yix.mm = null;
@@ -1842,7 +1844,7 @@ function yixShopView() {
   $('#app').innerHTML =
     '<div class="top"><button class="iconbtn" id="back" aria-label="Back">' + ICON.back + '</button><div class="grow"><div class="ttl">' + esc(f.title) + '</div><div class="sub">' + (e ? 'Editing ' + esc(e.ref) : 'Step 1 of 2 · Choose your items') + '</div></div></div>' +
     (!f.open && !e ? '<div class="alert err">This group buy is closed for new orders right now.</div>' : '') +
-    '<div class="rules"><div><b>Pay as you order</b><span>Payment is due right after you place your order.</span></div><div><b>Min. ' + f.minVials + ' vial' + (f.minVials === 1 ? '' : 's') + '</b><span>' + (f.bunuan ? 'Bunuan mode is on, so a single vial is welcome.' : 'Per order. A kit counts as 10 vials.') + '</span></div><div><b>Ship together</b><span>Already ordered in Mammoth or Fuan? Combine shipping on the next step.</span></div></div>' +
+    '<div class="rules"><div><b>Pay as you order</b><span>Your order is placed together with your payment screenshot.</span></div><div><b>Min. ' + f.minVials + ' vial' + (f.minVials === 1 ? '' : 's') + ' each</b><span>' + (f.bunuan ? 'Bunuan mode is on, so a single vial is welcome.' : 'For every item you order. A kit counts as 10 vials.') + '</span></div><div><b>Ship together</b><span>Already ordered in Mammoth or Fuan? Combine shipping on the next step.</span></div></div>' +
     (f.note ? '<div class="alert warn">' + esc(f.note) + '</div>' : '') +
     '<div class="search"><span>' + ICON.search + '</span><input class="in" id="q" type="search" placeholder="Search an item, e.g. retatrutide" aria-label="Search items" value="' + esc(Y.q) + '"></div>' +
     '<div class="cats" id="ycats" role="group" aria-label="Categories"></div>' +
@@ -1910,8 +1912,8 @@ function yixListChange(ev) {
 function yixCartBar() {
   const c = yixCalc(), el = $('#cartbar'), min = S.cfg.yix.minVials; if (!el) return;
   if (!c.items.length) { el.innerHTML = ''; return; }
-  const short = c.vials < min;
-  const sum = '<b>' + c.vials + ' vial' + (c.vials === 1 ? '' : 's') + '</b> · ' + c.items.length + ' item' + (c.items.length === 1 ? '' : 's') + '<br><span class="' + (short ? 'warn-t' : 'muted') + ' small">' + (short ? 'Add ' + (min - c.vials) + ' more vial' + (min - c.vials === 1 ? '' : 's') + ' (minimum ' + min + ')' : 'Subtotal ' + fmt(c.sub)) + '</span>';
+  const short = c.shorts.length > 0, sh = c.shorts[0], need = sh ? min - sh.v : 0;
+  const sum = '<b>' + c.vials + ' vial' + (c.vials === 1 ? '' : 's') + '</b> · ' + c.items.length + ' item' + (c.items.length === 1 ? '' : 's') + '<br><span class="' + (short ? 'warn-t' : 'muted') + ' small">' + (short ? 'Add ' + need + ' more vial' + (need === 1 ? '' : 's') + ' of ' + esc(sh.n) + ' (min. ' + min + ' each)' : 'Subtotal ' + fmt(c.sub)) + '</span>';
   const cur = el.querySelector('.sum');
   if (cur) { cur.innerHTML = sum; el.querySelector('#toDetails').disabled = short; return; }
   el.innerHTML = '<div class="cartbar"><div class="in-bar"><div class="sum">' + sum + '</div><button class="btn" id="toDetails"' + (short ? ' disabled' : '') + '>Continue</button></div></div>';
@@ -1951,9 +1953,21 @@ function yixDetailsView() {
     '<div class="field" style="margin:16px 0 0"><label class="f" for="nt">Notes <span class="muted">(optional)</span></label><textarea class="in" id="nt" placeholder="Anything we should know?">' + esc(d.note) + '</textarea></div></div>' +
     (e && e.editItems ? '<button class="btn ghost" id="chItems" style="margin-bottom:14px">Change items</button>' : '') +
     '<div class="card"><h2 class="sec"><span class="n">4</span>Your order</h2><div id="summary"></div>' +
-    '<div class="alert warn" style="margin-bottom:0">Payment is due when you place your order. Our bank details and QR appear on the next screen.</div></div>' +
-    '<div id="err"></div><button class="btn" id="place">' + (e ? 'Save changes' : 'Place order &amp; pay') + '</button>';
-  const sumEl = () => { const s = $('#summary'); if (s) s.innerHTML = lockI ? yixLockedSummary() : yixSummary(); };
+    (e ? '' : '') + '</div>' +
+    (e ? '' : '<div class="card paycard"><h2 class="sec"><span class="n">5</span>Pay to place your order</h2><p style="margin:0 0 12px;font-size:15.5px">Send exactly <b class="num" id="payamt"></b>, then upload your screenshot. Your order is only placed with your payment.</p><div id="pinfo"><div class="spin" style="margin:10px auto"></div></div>' +
+      '<div class="field" style="margin:14px 0 0"><label class="btn ghost" id="pfl" for="pf" style="cursor:pointer">' + ICON.card + ' <span id="pft">Choose payment screenshot</span></label><input type="file" id="pf" accept="image/*" style="position:absolute;opacity:0;width:1px;height:1px"><img id="ppv" alt="Your payment screenshot" style="display:none;max-width:100%;max-height:260px;border-radius:12px;border:1.5px solid var(--blush2);margin-top:10px"></div></div>') +
+    '<div id="err"></div><button class="btn" id="place">' + (e ? 'Save changes' : 'Place order &amp; send payment') + '</button>';
+  const sumEl = () => { const s = $('#summary'); if (s) s.innerHTML = lockI ? yixLockedSummary() : yixSummary(); const pa = $('#payamt'); if (pa) pa.textContent = fmt(yixCalc().total); };
+  if (!e) {
+    const showInfo = i => { const el = $('#pinfo'); if (!el) return; el.innerHTML = (i.qr ? '<img class="qrimg" src="' + esc(i.qr) + '" alt="Payment QR code">' : '') + (i.details ? '<div class="receipt pre" style="text-align:left">' + esc(i.details) + '</div><button class="btn sm ghost" id="cpDet" type="button" style="margin-top:8px">' + ICON.copy + ' Copy payment details</button>' : (i.qr ? '' : '<p class="muted">Payment details will be sent on WhatsApp.</p>')); if ($('#cpDet')) $('#cpDet').onclick = () => copyText(i.details, 'Payment details copied'); };
+    if (Y.pinfo) showInfo(Y.pinfo); else call('getPayInfo').then(i => { Y.pinfo = i; Y.poff = Date.parse(i.now) - Date.now(); showInfo(i); }).catch(() => showInfo({details: '', qr: ''}));
+    $('#pf').onchange = async ev => {
+      const f = ev.target.files && ev.target.files[0]; if (!f) return;
+      try { Y.proofImg = await loadImage(f); const pv = $('#ppv'); pv.src = Y.proofImg.src; pv.style.display = 'block'; $('#pft').textContent = 'Change screenshot'; $('#pfl').classList.remove('bad'); const m = $('#fe_pfl'); if (m) m.remove(); const eb = $('#err'); if (eb) eb.innerHTML = ''; }
+      catch (x) { Y.proofImg = null; toast(x.message); }
+    };
+    if (Y.proofImg) { const pv = $('#ppv'); pv.src = Y.proofImg.src; pv.style.display = 'block'; $('#pft').textContent = 'Change screenshot'; }
+  }
   const shipArea = () => {
     const a = $('#shipArea');
     if (d.combined) {
@@ -2027,19 +2041,21 @@ async function yixPlace() {
   if (d.a.ci.trim().length < 2) add('ad_ci', 'City / municipality', 'Enter your city or municipality.');
   if (d.a.pr.trim().length < 2) add('ad_pr', 'Province', 'Enter your province.');
   if (!/^\d{4}$/.test(d.a.zp.trim())) add('ad_zp', 'ZIP code', 'Enter the 4-digit ZIP code.');
-  if (!lockI && c.vials < S.cfg.yix.minVials) add('', 'Order size', 'Please order at least ' + S.cfg.yix.minVials + ' vials in total.');
+  if (!lockI && c.shorts.length) c.shorts.forEach(x => add('', x.n, 'Order at least ' + S.cfg.yix.minVials + ' vials of this item (a kit counts as its vials). Go back to add more or remove it.'));
+  if (!lockI && !e && !Y.proofImg) add('pfl', 'Payment screenshot', 'Upload your payment screenshot to place your order.');
   if (errs.length) return yixShowErrors(errs);
   d.address = addrJoin(d.a);
   const payload = {name: d.name, phone: d.phone, email: d.email, emailInv: d.emailInv, region: c.reg, address: d.address, note: d.note, labels: lockI ? e.labels : d.labels, combined: d.combined, combineRef: d.combineRef};
   if (!lockI) payload.items = c.items.map(i => ({code: i.code, unit: i.unit, qty: i.q}));
-  btn.disabled = true; btn.textContent = 'Saving your order…';
+  if (!e) payload.proof = {image: proofJpeg(drawProof({kind: 'ORDER', ref: 'YIXING ORDER · ' + d.name.trim().toUpperCase(), amount: String(c.total), img: Y.proofImg}, Date.now() + (Y.poff || 0)))};
+  btn.disabled = true; btn.textContent = e ? 'Saving your order…' : 'Placing your order…';
   try {
     const r = e ? await call('yixUpdate', e.ref, e.phone, payload) : await call('yixSubmit', payload);
     S.yix.order = S.order = r.order; S.yix.products = r.products || S.yix.products; S.yix.saved = e ? 'updated' : 'new'; S.yix.editing = null;
     store.set('blvc_phone', d.phone); if (d.email) store.set('blvc_email', d.email);
     const rec = store.get('blvc_recent', []).filter(x => x.ref !== r.order.ref); rec.unshift({ref: r.order.ref, form: 'YIXING'}); store.set('blvc_recent', rec.slice(0, 5));
-    go('yixdone'); toast(e ? 'Your order is updated' : 'Order saved. Now send your payment');
-  } catch (ex) { fail(ex.message); btn.disabled = false; btn.textContent = e ? 'Save changes' : 'Place order & pay'; }
+    Y.proofImg = null; go('yixdone'); toast(e ? 'Your order is updated' : 'Order placed with your payment');
+  } catch (ex) { fail(ex.message); btn.disabled = false; btn.textContent = e ? 'Save changes' : 'Place order & send payment'; }
 }
 const YSTEPS = ['Received', 'Confirmed', 'Packed', 'Shipped'];
 function yixTracker(o) {
