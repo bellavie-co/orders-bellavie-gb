@@ -252,6 +252,7 @@ select.in{appearance:none;background-image:linear-gradient(45deg,transparent 50%
 .stat{background:var(--pearl);border:1.5px solid var(--line);border-radius:18px;padding:12px;text-align:center}
 .stat b{display:block;font-family:var(--serif);font-size:26px;color:var(--berry);line-height:1.1}
 .stat span{font-size:13px;color:var(--mauve)}
+.paybox{background:var(--pearl);border:1.5px solid var(--line);border-radius:16px;padding:12px 14px;margin:12px 0}.paybox .prow{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:5px 0;border-top:1px dashed var(--line);font-size:14px}
 .ocard{background:var(--pearl);border:1.5px solid var(--line);border-radius:20px;padding:14px 16px;margin-bottom:10px;cursor:pointer;width:100%;text-align:left}
 .ocard:hover{border-color:var(--rose)}
 .ocard .ref{font-family:var(--serif);font-weight:700;font-size:19px;color:var(--berry-d)}
@@ -1451,6 +1452,32 @@ function groupCust(orders) {
   return list.sort((a, b) => a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1);
 }
 const sel = (arr, v, attrs) => '<select class="in" ' + attrs + '>' + arr.map(x => '<option' + (x === v ? ' selected' : '') + '>' + x + '</option>').join('') + '</select>';
+
+function payNums(o) {
+  const ps = (A.data.payments || []).filter(x => x.ref === o.ref && x.kind === 'ORDER' && x.status !== 'Rejected');
+  const live = Math.round(ps.reduce((a, x) => a + x.amount, 0) * 100) / 100;
+  return {ps, live, bal: Math.max(0, Math.round((o.total - live) * 100) / 100), over: Math.max(0, Math.round((live - o.total) * 100) / 100)};
+}
+const payTagCls = s => s === 'Verified' ? 'ok' : s === 'Rejected' ? 'bad' : 'kit';
+function payBox(o) {
+  const n = payNums(o);
+  return '<div class="paybox"><div class="iline"><span>Order total</span><b class="num">' + fmt(o.total) + '</b></div>' +
+    '<div class="iline"><span>Payments received</span><b class="num">' + fmt(n.live) + '</b></div>' +
+    '<div class="iline"><b>' + (n.over ? 'Overpaid' : 'Balance to collect') + '</b><b class="num" style="color:' + (n.bal ? 'var(--berry-d)' : 'inherit') + '">' + fmt(n.over || n.bal) + '</b></div>' +
+    (n.ps.length ? n.ps.map(x => '<div class="prow"><span>' + when(x.createdAt) + (x.note ? '<br><span class="muted small">' + esc(x.note) + '</span>' : '') + '</span><span><b class="num">' + fmt(x.amount) + '</b> <span class="tag ' + payTagCls(x.status) + '">' + esc(x.status) + '</span></span></div>').join('') : '<p class="muted small" style="margin:6px 0 0">No payments yet.</p>') +
+    '<div class="two" style="margin-top:10px"><div class="field" style="margin:0"><label class="f" for="rpa">Record a payment (₱)</label><input class="in" id="rpa" type="number" step="0.01" min="0" value="' + (n.bal || '') + '" inputmode="decimal"></div><div class="field" style="margin:0"><label class="f" for="rpn">Note</label><input class="in" id="rpn" placeholder="e.g. GCash top-up"></div></div>' +
+    '<button class="btn sm soft" id="rpb" style="margin-top:8px">Add payment received</button><p class="hint" style="margin:6px 0 0">Adds a verified payment, so the balance and payment status update by themselves. Save your other changes first.</p><div id="rperr"></div></div>';
+}
+function bindPayBox(o, reopen) {
+  const b = $('#rpb'); if (!b) return;
+  b.onclick = async () => {
+    b.disabled = true; b.textContent = 'Saving…';
+    try { const d = await adminCall('adminAddPayment', o.ref, $('#rpa').value, $('#rpn').value); toast(d.emailed ? 'Payment added. Email sent to the buyer' : 'Payment added'); adminView(); reopen(o.ref); }
+    catch (e) { b.disabled = false; b.textContent = 'Add payment received'; $('#rperr').innerHTML = '<div class="alert err" role="alert">' + esc(e.message) + '</div>'; }
+  };
+}
+function balTag(o) { const n = payNums(o); return n.live > 0 || o.status === 'Removed' ? '' : ''; }
+function balLine(o) { const n = payNums(o); return '<div class="small" style="margin-top:6px"><span class="muted">Paid</span> <b class="num">' + fmt(n.live) + '</b> · ' + (n.over ? '<span class="muted">Overpaid</span> <b class="num">' + fmt(n.over) + '</b>' : '<span class="muted">Balance</span> <b class="num" style="color:' + (n.bal ? 'var(--berry-d)' : 'inherit') + '">' + fmt(n.bal) + '</b>') + '</div>'; }
 function adminOrders() {
   const f = A.f, d = A.data;
   if (!A.view) A.view = 'orders';
@@ -1493,7 +1520,7 @@ function adminOrders() {
       '<div>' + esc(o.name) + (o.pasalo ? ' <span class="tag plain">pasalo</span>' : '') + ' · <span class="muted">' + esc(o.phone) + ' · ' + esc(o.region) + '</span></div>' +
       '<div style="margin-top:6px"><span class="tag ' + payCls(o.pay) + '" style="margin-left:0">' + esc(o.pay) + '</span><span class="tag plain">' + esc(o.status) + '</span>' +
       (o.status !== 'Removed' ? '<span class="tag ' + (o.kitStatus === 'Complete' ? 'ok' : 'kit') + '">kits: ' + esc(o.kitStatus) + '</span>' : '') + '</div>' +
-      '<div class="muted small" style="margin-top:6px">' + o.items.map(i => esc(i.name) + ' ' + esc(i.spec) + ' ×' + i.qty).join(' · ') + '</div></button>' +
+      '<div class="muted small" style="margin-top:6px">' + o.items.map(i => esc(i.name) + ' ' + esc(i.spec) + ' ×' + i.qty).join(' · ') + '</div>' + balLine(o) + '</button>' +
       '<div class="qrow">' + sel(PAYS, o.pay, 'data-qp="' + esc(o.ref) + '" aria-label="Payment status"') + sel(STATS, o.status, 'data-qs="' + esc(o.ref) + '" aria-label="Order status"') + '</div></div>').join('')
       : '<div class="card center"><p class="h-md">No orders here yet</p><p class="muted">Orders from the website show up as soon as they are placed.</p></div>';
     document.querySelectorAll('.ohead').forEach(b => b.onclick = () => openOrderEditor(b.dataset.ref));
@@ -1556,6 +1583,7 @@ function drawEditor() {
     '<div class="two"><div class="field"><label class="f">Packaging fee <span class="muted">(blank = default)</span></label><input class="in" id="epk" type="number" step="0.01" value="' + esc(E.packagingFee) + '"></div><div class="field"><label class="f">Shipping fee <span class="muted">(blank = default)</span></label><input class="in" id="esh" type="number" step="0.01" value="' + esc(E.shippingFee) + '"></div></div>' +
     '<div class="two"><div class="field"><label class="f">Your packaging cost <span class="muted">(what you paid)</span></label><input class="in" id="epc" type="number" step="0.01" min="0" value="' + esc(E.packCost) + '"></div><div class="field"><label class="f">Your shipping cost <span class="muted">(what you paid)</span></label><input class="in" id="esc2" type="number" step="0.01" min="0" value="' + esc(E.shipCost) + '"></div></div>' +
     '<div class="two"><div class="field"><label class="f">Payment</label><select class="in" id="epay">' + opts(['Unpaid', 'Partially Paid', 'Paid (unverified)', 'Paid'], E.pay) + '</select></div><div class="field"><label class="f">Order status</label><select class="in" id="est">' + opts(['Received', 'Confirmed', 'Packed', 'Shipped', 'Completed', 'Removed'], E.status) + '</select></div></div>' +
+    (E.ref ? payBox(d.orders.find(x => x.ref === E.ref) || {ref: E.ref, total: 0}) : '') +
     '<div class="field"><label class="f">Customer note</label><textarea class="in" id="eno">' + esc(E.note) + '</textarea></div>' +
     '<div class="field"><label class="f">Admin remarks <span class="muted">(only you see this)</span></label><textarea class="in" id="ear">' + esc(E.adminRemarks) + '</textarea></div>' +
     '<div id="eerr"></div><div class="stack"><button class="btn" id="esave">Save order</button>' +
@@ -1574,6 +1602,7 @@ function drawEditor() {
   };
   function toggleComb() { $('#combBox').classList.toggle('hide', E.form !== 'FUAN'); $('#mmBoxA').classList.toggle('hide', !(E.form === 'FUAN' && E.combined)); }
   toggleComb(); drawItems();
+  if (E.ref) bindPayBox(d.orders.find(x => x.ref === E.ref) || {ref: E.ref}, openOrderEditor);
 }
 function drawItems() {
   const E = A.edit, d = A.data, list = d.products.filter(p => p.form === E.form);
@@ -1844,7 +1873,7 @@ function yixShopView() {
   $('#app').innerHTML =
     '<div class="top"><button class="iconbtn" id="back" aria-label="Back">' + ICON.back + '</button><div class="grow"><div class="ttl">' + esc(f.title) + '</div><div class="sub">' + (e ? 'Editing ' + esc(e.ref) : 'Step 1 of 2 · Choose your items') + '</div></div></div>' +
     (!f.open && !e ? '<div class="alert err">This group buy is closed for new orders right now.</div>' : '') +
-    '<div class="rules"><div><b>Pay as you order</b><span>Your order is placed together with your payment screenshot.</span></div><div><b>Min. ' + f.minVials + ' vial' + (f.minVials === 1 ? '' : 's') + ' each</b><span>' + (f.bunuan ? 'Bunuan mode is on, so a single vial is welcome.' : 'For every item you order. A kit counts as 10 vials.') + '</span></div><div><b>Ship together</b><span>Already ordered in Mammoth or Fuan? Combine shipping on the next step.</span></div></div>' +
+    '<div class="rules"><div><b>Pay as you order</b><span>Your order is placed together with your payment screenshot.</span></div><div><b>Min. ' + f.minVials + ' vial' + (f.minVials === 1 ? '' : 's') + ' each</b><span>' + (f.bunuan ? 'Bunuan mode is on, so a single vial is welcome.' : 'For every item you order. A kit counts as all the vials in it.') + '</span></div><div><b>Ship together</b><span>Already ordered in Mammoth or Fuan? Combine shipping on the next step.</span></div></div>' +
     (f.note ? '<div class="alert warn">' + esc(f.note) + '</div>' : '') +
     '<div class="search"><span>' + ICON.search + '</span><input class="in" id="q" type="search" placeholder="Search an item, e.g. retatrutide" aria-label="Search items" value="' + esc(Y.q) + '"></div>' +
     '<div class="cats" id="ycats" role="group" aria-label="Categories"></div>' +
@@ -2223,7 +2252,7 @@ function adminYixing() {
       '<div style="margin-top:6px"><span class="tag ' + payCls(o.pay) + '" style="margin-left:0">' + esc(o.pay) + '</span><span class="tag plain">' + esc(o.status) + '</span>' +
       (o.payNow ? '<span class="tag bad">payment due</span>' : '') + (o.labels ? '<span class="tag plain">labels</span>' : '') + (o.combinedRef ? '<span class="tag ok">ships with ' + esc(o.combinedRef) + '</span>' : '') + (o.shipManual ? '<span class="tag kit">shipping fixed</span>' : '') +
       (o.email ? '<span class="tag plain">' + (o.emailInv ? 'email invoice' : 'email') + '</span>' : '') + (o.courier ? '<span class="tag plain">' + esc(o.courier) + (o.tracking ? ' · ' + esc(o.tracking) : '') + '</span>' : '') + '</div>' +
-      '<div class="muted small" style="margin-top:6px">' + o.items.map(i => esc(i.name) + ' ×' + i.qty + ' ' + i.unit.toLowerCase()).join(' · ') + '</div></button>' +
+      '<div class="muted small" style="margin-top:6px">' + o.items.map(i => esc(i.name) + ' ' + esc(i.spec) + ' ×' + i.qty + ' ' + i.unit.toLowerCase()).join(' · ') + '</div>' + balLine(o) + '<div class="small muted" style="margin-top:4px">' + o.vials + ' vial' + (o.vials === 1 ? '' : 's') + ' · ' + (o.address ? esc(o.address) : '') + '</div></button>' +
       '<div class="qrow">' + sel(PAYS, o.pay, 'data-yp="' + esc(o.ref) + '" aria-label="Payment status"') + sel(STATS, o.status, 'data-ys="' + esc(o.ref) + '" aria-label="Order status"') + '</div></div>').join('')
       : '<div class="card center"><p class="h-md">Nothing here</p><p class="muted">Yixing orders appear as soon as they are placed.</p></div>';
     document.querySelectorAll('.ohead[data-yref]').forEach(b => b.onclick = () => openYixOrder(b.dataset.yref));
@@ -2249,9 +2278,12 @@ function openYixOrder(ref, preStatus) {
   const f = (id, label, val, type, extra) => '<div class="field"><label class="f" for="' + id + '">' + label + '</label><input class="in" id="' + id + '" type="' + (type || 'text') + '" ' + (type === 'number' ? 'step="0.01" min="0"' : '') + ' value="' + esc(val) + '" ' + (extra || '') + '></div>';
   modal('<div class="row spread"><h2 class="h-lg">' + esc(o.ref) + '</h2><button class="iconbtn" id="mx" aria-label="Close">' + ICON.x + '</button></div>' +
     '<p class="small muted" style="margin:4px 0 10px">' + esc(o.name) + ' · ' + esc(o.phone) + (o.email ? ' · ' + esc(o.email) : '') + '</p>' +
-    o.items.map(i => '<div class="iline"><span>' + esc(i.name) + ' <span class="muted">' + i.qty + ' ' + i.unit.toLowerCase() + '</span></span><b class="num">' + fmt(i.total) + '</b></div>').join('') +
-    '<div class="iline muted"><span>Packaging</span><span class="num">' + fmt(o.packaging) + '</span></div>' + (o.labels ? '<div class="iline muted"><span>Vial labels &amp; numbers</span><span class="num">' + fmt(o.labelFee) + '</span></div>' : '') +
-    '<div class="iline"><b>Total</b><b class="num" id="ytot">' + fmt(o.total) + '</b></div><div class="iline muted"><span>Paid / awaiting check</span><span class="num">' + fmt(o.paid) + '</span></div>' +
+    '<label class="f">Items</label><div id="yitems"></div><button class="btn soft sm" id="yadd" style="margin-bottom:12px">Add item</button>' +
+    '<p class="hint" style="margin:-4px 0 10px">Change quantities or items, then Save. The total and balance update by themselves.</p>' +
+    '<div class="iline muted"><span>Items subtotal</span><span class="num">' + fmt(o.subtotal) + '</span></div><div class="iline muted"><span>Packaging</span><span class="num">' + fmt(o.packaging) + '</span></div>' + (o.labels ? '<div class="iline muted"><span>Vial labels &amp; numbers</span><span class="num">' + fmt(o.labelFee) + '</span></div>' : '') +
+    '<div class="iline"><b>Total</b><b class="num" id="ytot">' + fmt(o.total) + '</b></div>' + payBox(o) +
+    '<div class="two"><div class="field"><label class="f" for="ynm">Name</label><input class="in" id="ynm" value="' + esc(o.name) + '"></div><div class="field"><label class="f" for="yph">WhatsApp</label><input class="in" id="yph" type="tel" value="' + esc(o.phone) + '"></div></div>' +
+    '<div class="two"><div class="field"><label class="f" for="yem">Email</label><input class="in" id="yem" type="email" value="' + esc(o.email || '') + '"></div><div class="field"><label class="f" for="ylab">Vial labels</label><select class="in" id="ylab"><option value="0"' + (o.labels ? '' : ' selected') + '>No</option><option value="1"' + (o.labels ? ' selected' : '') + '>Yes</option></select></div></div>' +
     '<div class="two" style="margin-top:12px"><div class="field"><label class="f">Payment</label>' + sel(PAYS, E.pay, 'id="ypay"') + '</div><div class="field"><label class="f">Order status</label>' + sel(STATS, E.status, 'id="ystat"') + '</div></div>' +
     '<div class="two"><div class="field"><label class="f">Courier</label><select class="in" id="ycou">' + YCO.map(x => '<option' + (x === E.courier ? ' selected' : '') + ' value="' + esc(x) + '">' + (x || 'Not yet') + '</option>').join('') + '</select></div>' + f('ytrk', 'Tracking number', E.tracking) + '</div>' +
     f('yship', 'Shipping fee, Local SF (₱)', E.shipping, 'number') + '<p class="hint" style="margin-top:-8px" id="yhint">' + (o.shipManual ? 'You fixed this amount. Clear the box to go back to the ' + esc(o.region) + ' rate.' : 'Worked out from the region (' + esc(o.region) + '). Type a different amount to fix it for this order.') + '</p>' +
@@ -2262,6 +2294,16 @@ function openYixOrder(ref, preStatus) {
     '<div class="field"><label class="f" for="yrem">Remarks (private)</label><textarea class="in" id="yrem" rows="2">' + esc(E.remarks) + '</textarea></div>' +
     (o.emailInv && o.email ? '<p class="small muted">Marking this order Shipped emails ' + esc(o.email) + ' the first time.</p>' : '') +
     '<div id="yerr"></div><button class="btn" id="ysave">Save</button><button class="btn ghost" id="ycancel" style="margin-top:10px">Cancel</button><button class="btn danger" id="ydel" style="margin-top:10px">' + ICON.trash + ' Delete this order</button>');
+  const YI = o.items.map(i => ({code: i.code, unit: i.unit, qty: i.qty})), yorig = JSON.stringify(YI), yprods = (A.data.yixProducts || []).filter(p => p.status !== 'Hidden' || o.items.some(i => i.code === p.code));
+  const drawYI = () => {
+    $('#yitems').innerHTML = YI.length ? YI.map((it, i) => '<div data-i="' + i + '" style="display:grid;grid-template-columns:1fr 1fr 44px;gap:8px;margin-bottom:10px"><select class="in" data-k="code" style="grid-column:1/-1">' + yprods.map(p => '<option value="' + esc(p.code) + '"' + (p.code === it.code ? ' selected' : '') + '>' + esc(p.name) + ' · ' + esc(p.spec) + ' (' + fmt(p.vialPrice) + ')</option>').join('') + '</select>' +
+      '<select class="in" data-k="unit"><option' + (it.unit === 'Vial' ? ' selected' : '') + '>Vial</option><option' + (it.unit === 'Kit' ? ' selected' : '') + '>Kit</option></select>' +
+      '<input class="in" data-k="qty" type="number" min="1" value="' + esc(it.qty) + '" aria-label="Quantity"><button class="iconbtn" data-rm="' + i + '" aria-label="Remove item" style="width:40px;height:40px">' + ICON.x + '</button></div>').join('') : '<p class="muted small">No items. Add at least one.</p>';
+    $('#yitems').onchange = $('#yitems').oninput = e => { const row = e.target.closest('[data-i]'); if (!row || !e.target.dataset.k) return; YI[row.dataset.i][e.target.dataset.k] = e.target.dataset.k === 'qty' ? Number(e.target.value) : e.target.value; };
+    $('#yitems').onclick = e => { const b = e.target.closest('[data-rm]'); if (b) { YI.splice(Number(b.dataset.rm), 1); drawYI(); } };
+  };
+  drawYI(); $('#yadd').onclick = () => { const p = yprods.find(x => x.status === 'Available') || yprods[0]; if (p) { YI.push({code: p.code, unit: 'Vial', qty: 2}); drawYI(); } };
+  bindPayBox(o, r => openYixOrder(r));
   $('#mx').onclick = closeModal; $('#ycancel').onclick = closeModal;
   $('#ydel').onclick = async () => {
     const yes = await confirmBox('Delete ' + o.ref + '?', 'This permanently removes ' + o.name + '\'s Yixing order from the website and your sheets. This cannot be undone. To keep a record instead, set the status to Removed.', 'Yes, delete it', 'Keep it');
@@ -2274,9 +2316,12 @@ function openYixOrder(ref, preStatus) {
     const b = $('#ysave'); b.disabled = true; b.textContent = 'Saving…';
     const patch = {pay: $('#ypay').value, status: $('#ystat').value, courier: $('#ycou').value, tracking: $('#ytrk').value, shipping: ($('#yship').value === String(E.shipping) && !o.shipManual) ? undefined : $('#yship').value, region: $('#yreg').value, combinedRef: $('#ycomb').value, address: $('#yadd').value, remarks: $('#yrem').value, packCost: $('#ypc').value, shipCost: $('#ysc').value};
     if (patch.pay === o.pay) delete patch.pay;
+    if (JSON.stringify(YI) !== yorig) patch.items = YI;
+    if ($('#ynm').value.trim() !== o.name) patch.name = $('#ynm').value; if ($('#yph').value.trim() !== o.phone) patch.phone = $('#yph').value; if ($('#yem').value.trim() !== (o.email || '')) patch.email = $('#yem').value;
+    if (($('#ylab').value === '1') !== !!o.labels) patch.labels = $('#ylab').value === '1';
     if (patch.shipping === undefined) delete patch.shipping;
     if (patch.combinedRef === (o.combinedRef || '')) delete patch.combinedRef;
-    try { await adminCall('adminYixSet', o.ref, patch); closeModal(); adminView(); toast('Saved. The sheet is updated'); }
+    try { await adminCall('adminYixSet', o.ref, patch); closeModal(); adminView(); const n2 = A.data.yix.find(x => x.ref === o.ref); toast(patch.items && n2 ? 'Saved. Total ' + fmt(n2.total) + ' · balance ' + fmt(n2.due) : 'Saved. The sheet is updated'); if (patch.items) openYixOrder(o.ref); }
     catch (e) { b.disabled = false; b.textContent = 'Save'; $('#yerr').innerHTML = '<div class="alert err" role="alert">' + esc(e.message) + '</div>'; }
   };
 }
@@ -2284,7 +2329,7 @@ function openYixProducts() {
   const ps = A.data.yixProducts;
   const cnt = {Available: 0, Locked: 0, Hidden: 0}; ps.forEach(p => cnt[p.status]++);
   modal('<div class="row spread"><h2 class="h-lg">Yixing items &amp; prices</h2><button class="iconbtn" id="mx" aria-label="Close">' + ICON.x + '</button></div>' +
-    '<p class="small muted" style="margin:6px 0 4px">Prices are USD × the rate in your Yixing Pricelist tab (cell G2).</p>' +
+    '<p class="small muted" style="margin:6px 0 4px">Prices are USD × the rate in your Yixing Pricelist tab (cell G2). The price is per kit, and the vial price is the kit price divided by the vials per kit. Change <b>Vials per kit</b> for items that come in a different pack size.</p>' +
     '<p class="small" style="margin:0 0 12px"><b>Available</b> = buyers can order · <b>Locked</b> = shown greyed out with your note, cannot be ordered · <b>Hidden</b> = not shown. (' + cnt.Available + ' available, ' + cnt.Locked + ' locked, ' + cnt.Hidden + ' hidden)</p>' +
     '<input class="in" id="ypq" type="search" placeholder="Search items" style="margin-bottom:10px"><div id="yplist"></div><button class="btn ghost" id="ydone">Close</button>');
   $('#mx').onclick = closeModal; $('#ydone').onclick = closeModal;
@@ -2293,6 +2338,7 @@ function openYixProducts() {
     $('#yplist').innerHTML = ps.filter(p => !q || (p.name + ' ' + p.spec + ' ' + p.code).toLowerCase().includes(q)).map(p =>
       '<div class="card" style="padding:12px 14px;margin:0 0 8px"><div class="row spread"><div><b>' + esc(p.name) + '</b><br><span class="muted small">' + esc(p.spec) + ' · ' + (p.usd == null ? 'no price yet' : fmt(p.kitPrice) + ' / kit · ' + fmt(p.vialPrice) + ' / vial') + '</span></div>' +
       '<span class="tag ' + (p.status === 'Available' ? (p.active ? 'ok' : 'kit') : p.status === 'Locked' ? 'kit' : 'plain') + '">' + (p.status === 'Available' && !p.active ? 'No price' : p.status) + '</span></div>' +
+      '<div class="two" style="margin-top:8px"><div><label class="f small">Vials per kit</label><input class="in" type="number" min="1" max="500" data-yk="' + esc(p.code) + '" value="' + p.per + '"></div><div><label class="f small">&nbsp;</label><p class="small muted" style="margin:0;padding-top:10px">Kit = ' + p.per + ' vial' + (p.per === 1 ? '' : 's') + '</p></div></div>' +
       '<div class="two" style="margin-top:8px"><div><label class="f small">Price (USD)</label><input class="in" type="number" step="0.01" min="0" data-yu="' + esc(p.code) + '" value="' + (p.usd == null ? '' : p.usd) + '"></div>' +
       '<div><label class="f small">Status</label>' + sel(['Available', 'Locked', 'Hidden'], p.status, 'data-yst="' + esc(p.code) + '"') + '</div></div>' +
       '<label class="f small" style="margin-top:6px">Note shown to buyers</label><input class="in" data-yn="' + esc(p.code) + '" placeholder="e.g. Arriving this weekend" value="' + esc(p.note && p.note !== 'Not available right now' && p.note !== 'Price coming soon' ? p.note : '') + '">' +
@@ -2300,7 +2346,7 @@ function openYixProducts() {
     document.querySelectorAll('[data-ys2]').forEach(b => b.onclick = async () => {
       const code = b.dataset.ys2, g = a => document.querySelector('[' + a + '="' + code + '"]');
       b.disabled = true; b.textContent = 'Saving…';
-      try { await adminCall('adminYixProduct', code, g('data-yu').value, g('data-yst').value, g('data-yn').value); await refreshPublic(); const keep = $('#ypq').value; toast('Saved'); adminView(); openYixProducts(); $('#ypq').value = keep; if (keep) $('#ypq').dispatchEvent(new Event('input')); }
+      try { await adminCall('adminYixProduct', code, g('data-yu').value, g('data-yst').value, g('data-yn').value, g('data-yk').value); await refreshPublic(); const keep = $('#ypq').value; toast('Saved'); adminView(); openYixProducts(); $('#ypq').value = keep; if (keep) $('#ypq').dispatchEvent(new Event('input')); }
       catch (e) { b.disabled = false; b.textContent = 'Save'; }
     });
   };
