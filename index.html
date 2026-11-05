@@ -169,6 +169,7 @@ select.in{appearance:none;background-image:linear-gradient(45deg,transparent 50%
 .tag.cart{background:var(--berry);color:#fff}
 .tag.kit{background:var(--warn-bg);color:var(--warn)}
 .tag.ok{background:var(--sage-bg);color:var(--sage)}
+.tag.lab{background:#e8def7;color:#4b2a86}
 .tag.bad{background:var(--err-bg);color:var(--err)}
 .tag.plain{background:var(--blush);color:var(--berry-d)}
 .variants{border-top:1.5px dashed var(--line)}
@@ -574,7 +575,7 @@ const MSG = {
   name: 'Please add your name so we know who this order is for',
   phone: 'Please add your WhatsApp number so we can send your invoice',
   region: 'Please pick where we are shipping: Luzon, Visayas or Mindanao',
-  mmCheck: 'Tap Check to confirm your Mammoth reference number first',
+  mmCheck: 'Tap Check to confirm the reference number of your other order first',
   pack: 'Choose half kit or 1 kit first',
   saved: 'Order saved. Thank you!',
   updated: 'Order updated. All set',
@@ -682,11 +683,12 @@ function calc() {
   });
   sub = Math.round(sub * 100) / 100;
   const d = S.draft, cfg = S.cfg;
-  const combined = f === 'FUAN' && d.combined && S.mm && S.mm.ref === d.mammothRef.trim().toUpperCase();
+  const combined = d.combined && S.mm && S.mm.ref === d.mammothRef.trim().toUpperCase();
   const region = combined ? S.mm.region : d.region;
-  const packaging = combined && cfg.fuanCombinedWaivesPackaging ? 0 : cfg.packagingFee;
+  const onlyAddons = items.length > 0 && items.every(i => i.p.addon);
+  const packaging = onlyAddons ? 0 : cfg.packagingFee;
   const shipping = combined ? 0 : (region ? cfg.ship[region] : 0);
-  return {items, sub, vials, packaging, shipping, region, combined, total: Math.round((sub + packaging + shipping) * 100) / 100};
+  return {items, sub, vials, packaging, onlyAddons, shipping, region, combined, total: Math.round((sub + packaging + shipping) * 100) / 100};
 }
 S.editBasePrice = {};
 
@@ -730,9 +732,12 @@ function welcomeHtml() {
     (S.cfg.welcomePoints ? '<div class="trust">' + S.cfg.welcomePoints.split(',').map(x => x.trim()).filter(Boolean).map(x => '<span>' + ICON.check + ' ' + esc(x) + '</span>').join('') + '</div>' : '') +
     (S.cfg.announcement ? '<div class="banner">' + esc(S.cfg.announcement) + '</div>' : '') + '</section>' +
     '<div class="sech"><h2>Open group buys</h2><span>Tap one to start</span></div><div class="gbs">' +
-      gb('YIXING', ICON.heart, 'In stock in the Philippines · pay when you order · J&amp;T or Lalamove', ' <span class="pill new">New</span>') +
-      gb('MAMMOTH', ICON.box, 'Pick peptides by the vial · 10 vials make a kit') +
-      gb('FUAN', ICON.drop, 'Half kit (5 vials) or a full kit (10 vials)') +
+      [['YIXING', ICON.heart, 'In stock in the Philippines · pay when you order · J&amp;T or Lalamove', ' <span class="pill new">New</span>'],
+       ['MAMMOTH', ICON.box, 'Pick peptides by the vial · 10 vials make a kit'],
+       ['FUAN', ICON.drop, 'Half kit (5 vials) or a full kit (10 vials)'],
+       ['FUAN3', ICON.drop, 'Half kit (5 vials) or a full kit (10 vials)', ' <span class="pill new">New</span>']]
+        .filter(x => F[x[0]] && F[x[0]].open).map(x => gb(x[0], x[1], x[2], x[3])).join('') +
+        (!Object.keys(F).some(k => F[k].open) ? '<div class="card center"><p class="muted">No group buy is open right now. Please check back soon.</p></div>' : '') +
     '</div>' +
     '<div class="sech"><h2>How it works</h2></div><div class="steps3"><div><b>1</b><strong>Choose &amp; order</strong><span>Pick your items and fill in your details.</span></div><div><b>2</b><strong>Send payment</strong><span>Pay and upload your screenshot.</span></div><div><b>3</b><strong>We ship it</strong><span>Get your tracking number here.</span></div></div>' +
     '<div class="sech"><h2>Already ordered?</h2></div><div class="tools"><button class="btn ghost" id="findBtn">' + ICON.search + ' Find or edit order</button><button class="btn ghost" id="payBtn">' + ICON.card + ' Upload payment</button></div>' +
@@ -901,18 +906,19 @@ function detailsView() {
   $('#place').onclick = place;
 }
 function detailsForm(isFuan) {
+  isFuan = true; // every group buy can ship together with another order
   const d = S.draft, cfg = S.cfg, e = S.editing;
   let ship = '';
   if (isFuan) {
     ship = '<div class="field"><label class="f">Shipping</label><div class="seg two" id="shipMode">' +
       '<button class="opt" data-m="own" aria-pressed="' + !d.combined + '">Ship to my region<small>Regular shipping fee</small></button>' +
-      '<button class="opt" data-m="mm" aria-pressed="' + d.combined + '">I already ordered in Mammoth<small>Ship together</small></button></div></div>';
+      '<button class="opt" data-m="mm" aria-pressed="' + d.combined + '">Ship with my other order<small>Mammoth, Fuan or Yixing</small></button></div></div>';
   }
   const regionBlock = '<div class="field" id="regionBox"><label class="f">Where are we shipping?</label><div class="seg" id="regions">' +
     REGIONS.map(r => '<button class="opt" data-r="' + r + '" aria-pressed="' + (d.region === r) + '">' + r + '<small>' + fmt(cfg.ship[r]) + ' shipping</small></button>').join('') + '</div></div>';
-  const mmBlock = '<div class="field" id="mmBox"><label class="f" for="mmRef">Your Mammoth reference number</label>' +
-    '<div class="row"><input class="in grow" id="mmRef" placeholder="BLVC-MMGB-XXXXXX" autocapitalize="characters" value="' + esc(d.mammothRef) + '"><button class="btn sm" id="mmCheck" type="button">Check</button></div>' +
-    '<div id="mmMsg"></div><p class="hint">We match it with the WhatsApp number above, then ship both orders together.</p></div>';
+  const mmBlock = '<div class="field" id="mmBox"><label class="f" for="mmRef">Reference number of your other order</label>' +
+    '<div class="row"><input class="in grow" id="mmRef" placeholder="e.g. BLVC-MMGB-XXXXXX" autocapitalize="characters" value="' + esc(d.mammothRef) + '"><button class="btn sm" id="mmCheck" type="button">Check</button></div>' +
+    '<div id="mmMsg"></div><p class="hint">We match it with the WhatsApp number above, then ship both orders together. Each order keeps its own packaging fee; only the shipping fee is shared.</p></div>';
   return '<div class="card"><div class="field"><label class="f" for="nm">Your name</label><input class="in" id="nm" autocomplete="name" placeholder="Full name" value="' + esc(d.name) + '"></div>' +
     '<div class="field"><label class="f" for="ph">WhatsApp number</label><input class="in" id="ph" type="tel" inputmode="tel" autocomplete="tel" placeholder="0917 123 4567" value="' + esc(d.phone) + '"><p class="hint">' + (e ? 'This number identifies your order and cannot be changed here.' : 'We use it to send your invoice and to find your order later.') + '</p></div>' +
     ship + (isFuan ? '<div id="shipArea"></div>' : regionBlock) +
@@ -920,6 +926,7 @@ function detailsForm(isFuan) {
     (isFuan ? '<template id="tplRegion">' + regionBlock + '</template><template id="tplMm">' + mmBlock + '</template>' : '');
 }
 function bindDetails(isFuan) {
+  isFuan = true;
   const d = S.draft, e = S.editing;
   $('#nm').oninput = ev => { d.name = ev.target.value; };
   const ph = $('#ph');
@@ -948,22 +955,22 @@ function renderShipArea() {
     const inp = $('#mmRef');
     inp.oninput = ev => { d.mammothRef = ev.target.value.toUpperCase(); S.mm = null; renderMmMsg(); renderSummary(); };
     $('#mmCheck').onclick = checkMm;
-    if (S.editing && d.mammothRef) { S.mm = S.mm || {ref: d.mammothRef.toUpperCase(), region: S.editing.region}; }
+    if (S.editing && d.mammothRef) { S.mm = S.mm || {ref: d.mammothRef.toUpperCase(), region: S.editing.region, formTitle: ''}; }
     renderMmMsg();
   } else bindRegions();
 }
 function renderMmMsg() {
   const m = $('#mmMsg'); if (!m) return;
   const ok = S.mm && S.mm.ref === S.draft.mammothRef.trim().toUpperCase();
-  m.innerHTML = ok ? '<div class="alert ok">Found it. This order ships to <b>' + esc(S.mm.region) + '</b> together with your Mammoth order, so shipping is ' + fmt(0) + '.</div>' : '';
+  m.innerHTML = ok ? '<div class="alert ok">Found it. This order ships to <b>' + esc(S.mm.region) + '</b> together with your ' + esc(S.mm.formTitle || 'other') + ' order, so shipping is ' + fmt(0) + '.</div>' : '';
 }
 async function checkMm() {
   const d = S.draft, m = $('#mmMsg'), btn = $('#mmCheck');
-  if (!d.mammothRef.trim()) { m.innerHTML = '<div class="alert err">Enter your Mammoth reference number.</div>'; return; }
+  if (!d.mammothRef.trim()) { m.innerHTML = '<div class="alert err">Enter the reference number of your other order.</div>'; return; }
   btn.disabled = true; btn.textContent = 'Checking…';
   try {
-    const r = await call('checkMammothRef', d.mammothRef.trim(), d.phone);
-    S.mm = {ref: r.ref, region: r.region}; d.mammothRef = r.ref; $('#mmRef').value = r.ref;
+    const r = await call('checkMammothRef', d.mammothRef.trim(), d.phone, S.editing ? S.editing.ref : '');
+    S.mm = {ref: r.ref, region: r.region, formTitle: r.formTitle}; d.mammothRef = r.ref; $('#mmRef').value = r.ref;
     renderMmMsg(); renderSummary();
   } catch (e) { S.mm = null; m.innerHTML = '<div class="alert err">' + esc(e.message) + '</div>'; }
   btn.disabled = false; btn.textContent = 'Check';
@@ -975,41 +982,59 @@ function summaryHtml() {
     const msg = it.p.kitSize === 1 ? '' : (ki.mineWait === 0 ? '<span class="tag ok">kit complete</span>' : '<span class="tag kit">bunuan · ' + ki.needed + ' more needed</span>');
     return '<div class="item"><div class="line" style="padding:0"><div><b>' + esc(it.p.name) + '</b><br><span class="muted small">' + esc(it.p.spec) + '</span></div><div class="num" style="text-align:right"><b>' + fmt(it.total) + '</b><br><span class="muted small">' + it.q + ' × ' + fmt(it.price) + '</span></div></div>' + (msg ? '<div style="margin-top:6px">' + msg + '</div>' : '') + '</div>';
   }).join('');
-  const shipLabel = c.combined ? 'Shipping (together with Mammoth)' : (c.region ? 'Shipping · ' + c.region : 'Shipping');
+  const shipLabel = c.combined ? 'Shipping (together with your other order)' : (c.region ? 'Shipping · ' + c.region : 'Shipping');
   return items + '<div class="divider"></div>' +
     '<div class="line"><span>Items subtotal</span><span class="num">' + fmt(c.sub) + '</span></div>' +
-    '<div class="line"><span>Packaging fee</span><span class="num">' + fmt(c.packaging) + '</span></div>' +
+    '<div class="line"><span>Packaging fee' + (c.onlyAddons ? ' <span class="muted small">(none for add-ons only)</span>' : '') + '</span><span class="num">' + fmt(c.packaging) + '</span></div>' +
     '<div class="line"><span>' + shipLabel + '</span><span class="num">' + (c.region || c.combined ? fmt(c.shipping) : 'pick a region') + '</span></div>' +
     '<div class="line total"><span>Total</span><span class="num">' + fmt(c.total) + '</span></div>';
 }
-function renderSummary() { const el = $('#summary'); if (el) el.innerHTML = summaryHtml(); }
+function renderSummary() { const el = $('#summary'); if (el) el.innerHTML = summaryHtml(); const pa = $('#payamt'); if (pa) pa.textContent = fmt(calc().total); }
 async function place() {
   const c = calc(), d = S.draft, e = S.editing, btn = $('#place'), err = $('#err');
   err.innerHTML = '';
   const fail = m => { err.innerHTML = '<div class="alert err" role="alert">' + esc(m) + '</div>'; err.scrollIntoView({behavior: 'smooth', block: 'center'}); };
   if (d.name.trim().length < 2) return fail(MSG.name);
   if (!d.phone.trim()) return fail(MSG.phone);
-  if (S.form === 'FUAN' && d.combined) {
+  if (d.combined) {
     if (!(S.mm && S.mm.ref === d.mammothRef.trim().toUpperCase())) return fail(MSG.mmCheck);
   } else if (!d.region) return fail(MSG.region);
+  if (needsPayNow() && !(S.fp && S.fp.img)) { fail('Upload your payment screenshot to place your order.'); const pl = $('#pfl'); if (pl) pl.scrollIntoView({behavior: 'smooth', block: 'center'}); return; }
   const payload = {form: S.form, name: d.name, phone: d.phone, region: d.region, note: d.note,
-    items: c.items.map(i => ({code: i.p.code, qty: i.q})), combined: S.form === 'FUAN' && d.combined, mammothRef: d.mammothRef};
-  btn.disabled = true; btn.textContent = 'Saving your order…';
+    items: c.items.map(i => ({code: i.p.code, qty: i.q})), combined: d.combined, mammothRef: d.mammothRef};
+  if (needsPayNow()) payload.proof = {image: proofJpeg(drawProof({kind: 'ORDER', ref: (S.cfg.forms[S.form].title + ' ORDER · ' + d.name.trim()).toUpperCase(), amount: String(c.total), img: S.fp.img}, Date.now() + (S.fp.off || 0)))};
+  btn.disabled = true; btn.textContent = needsPayNow() ? 'Placing your order…' : 'Saving your order…';
   try {
     const r = e ? await call('updateOrder', e.ref, e.phone, payload) : await call('submitOrder', payload);
     S.kits = r.kits; S.order = r.order; S.justSaved = e ? 'updated' : 'new';
     store.set('blvc_phone', d.phone);
     const rec = store.get('blvc_recent', []).filter(x => x.ref !== r.order.ref);
     rec.unshift({ref: r.order.ref, form: r.order.form}); store.set('blvc_recent', rec.slice(0, 5));
-    S.editing = null; S.editBase = {}; S.editBasePrice = {};
-    go('done'); toast(e ? MSG.updated : MSG.saved);
-  } catch (ex) { fail(ex.message); btn.disabled = false; btn.textContent = e ? 'Save changes' : 'Place my order'; }
+    S.editing = null; S.editBase = {}; S.editBasePrice = {}; if (S.fp) S.fp.img = null;
+    go('done'); toast(e ? MSG.updated : (r.order.form === 'FUAN3' ? 'Order placed with your payment' : MSG.saved));
+  } catch (ex) { fail(ex.message); btn.disabled = false; btn.textContent = e ? 'Save changes' : needsPayNow() ? 'Place order & send payment' : 'Place my order'; }
 }
 
 /* ---------- Fuan */
+const needsPayNow = () => S.form === 'FUAN3' && !S.editing;
+function fuanPayCard() {
+  return '<div class="card paycard"><h2 class="h-md" style="margin-bottom:6px">Pay to place your order</h2><p style="margin:0 0 12px;font-size:15.5px">Send exactly <b class="num" id="payamt"></b>, then upload your screenshot. Your order is only placed with your payment.</p><div id="pinfo"><div class="spin" style="margin:10px auto"></div></div>' +
+    '<div class="field" style="margin:14px 0 0"><label class="btn ghost" id="pfl" for="pf" style="cursor:pointer">' + ICON.card + ' <span id="pft">Choose payment screenshot</span></label><input type="file" id="pf" accept="image/*" style="position:absolute;opacity:0;width:1px;height:1px"><img id="ppv" alt="Your payment screenshot" style="display:none;max-width:100%;max-height:260px;border-radius:12px;border:1.5px solid var(--blush2);margin-top:10px"></div></div>';
+}
+function bindFuanPay() {
+  const F = S.fp = S.fp || {};
+  const showInfo = i => { const el = $('#pinfo'); if (!el) return; el.innerHTML = (i.qr ? '<img class="qrimg" src="' + esc(i.qr) + '" alt="Payment QR code">' : '') + (i.details ? '<div class="receipt pre" style="text-align:left">' + esc(i.details) + '</div><button class="btn sm ghost" id="cpDet" type="button" style="margin-top:8px">' + ICON.copy + ' Copy payment details</button>' : (i.qr ? '' : '<p class="muted">Payment details will be sent on WhatsApp.</p>')); if ($('#cpDet')) $('#cpDet').onclick = () => copyText(i.details, 'Payment details copied'); };
+  if (F.info) showInfo(F.info); else call('getPayInfo').then(i => { F.info = i; F.off = Date.parse(i.now) - Date.now(); showInfo(i); }).catch(() => showInfo({details: '', qr: ''}));
+  const show = () => { const pv = $('#ppv'); pv.src = F.img.src; pv.style.display = 'block'; $('#pft').textContent = 'Change screenshot'; };
+  $('#pf').onchange = async ev => {
+    const f = ev.target.files && ev.target.files[0]; if (!f) return;
+    try { F.img = await loadImage(f); show(); const eb = $('#err'); if (eb) eb.innerHTML = ''; } catch (x) { F.img = null; toast(x.message); }
+  };
+  if (F.img) show();
+}
 function fuanView() {
-  const p = S.products.find(x => x.form === 'FUAN'), f = S.cfg.forms.FUAN, e = S.editing;
-  if (!p) { $('#app').innerHTML = '<div class="card center"><p class="h-md">Fuan GTT is not available right now</p><button class="btn" id="back" style="margin-top:14px">Back home</button></div>'; $('#back').onclick = () => go('welcome'); return; }
+  const p = S.products.find(x => x.form === S.form && !x.addon), pb = S.products.find(x => x.form === S.form && x.addon), f = S.cfg.forms[S.form], e = S.editing;
+  if (!p) { $('#app').innerHTML = '<div class="card center"><p class="h-md">This group buy is not available right now</p><button class="btn" id="back" style="margin-top:14px">Back home</button></div>'; $('#back').onclick = () => go('welcome'); return; }
   const sizes = (p.sizes || []).filter(n => n > 0 && n <= p.kitSize);
   if (!sizes.length) sizes.push(Math.max(1, p.kitSize / 2), p.kitSize);
   const small = sizes[0], big = sizes[sizes.length - 1];
@@ -1023,11 +1048,16 @@ function fuanView() {
     '<div class="card"><h2 class="h-md">' + esc(p.name) + '</h2><p class="muted">' + esc(p.spec) + ' · ' + fmt(p.vialPrice) + ' per vial</p>' +
     '<div class="seg two" id="sizes" style="margin-top:14px">' + sizes.map(n => '<button class="opt big" data-n="' + n + '" aria-pressed="' + (S.fuan.size === n) + '">' + lab(n) + '<span class="pr num">' + fmt(n * p.vialPrice) + '</span><small>' + n + ' vials</small></button>').join('') + '</div>' +
     '<div id="packs"></div><div id="kitline"></div></div>' +
+    (pb ? '<div class="card"><div class="row spread" style="gap:12px"><div><span class="tag plain">Add-on</span><h2 class="h-md" style="margin-top:6px">' + esc(pb.name) + '</h2><p class="muted" style="margin:0">' + esc(pb.spec) + ' · ' + fmt(pb.vialPrice) + ' each · no minimum</p></div>' +
+      '<div class="stepper" id="pbstep"><button type="button" data-pb="-" aria-label="One less">−</button><input type="number" inputmode="numeric" min="0" max="99" id="pbq" value="' + (S.cart[pb.code] || '') + '" placeholder="0" aria-label="How many ' + esc(pb.name) + '"><button type="button" data-pb="+" aria-label="One more">+</button></div></div>' +
+      '<p class="hint" style="margin:8px 0 0">No packaging fee when this is the only thing in your order.</p></div>' : '') +
     detailsForm(true) +
     '<div class="card"><h2 class="h-md" style="margin-bottom:6px">Your order</h2><div id="summary"></div></div>' +
-    '<div id="err"></div><button class="btn" id="place">' + (e ? 'Save changes' : 'Place my order') + '</button>' +
+    (needsPayNow() ? fuanPayCard() : '') +
+    '<div id="err"></div><button class="btn" id="place">' + (e ? 'Save changes' : needsPayNow() ? 'Place order &amp; send payment' : 'Place my order') + '</button>' +
     '<p class="small muted center" style="margin-top:12px">Your invoice and reference number appear right after you place your order.</p>';
   $('#back').onclick = () => e ? go('done') : go('welcome');
+  if (needsPayNow()) bindFuanPay();
   const drawPacks = () => {
     const size = S.fuan.size, q = S.cart[p.code] || 0, n = size ? Math.round(q / size) : 0, el = $('#packs');
     document.querySelectorAll('#sizes .opt').forEach(x => x.setAttribute('aria-pressed', String(Number(x.dataset.n) === size)));
@@ -1037,6 +1067,7 @@ function fuanView() {
   };
   const setN = n => {
     n = Math.max(0, Math.min(99, Math.floor(Number(n)) || 0));
+    if (n > 1 && S.fuan.size === small && small < big) { n = Math.max(1, Math.floor(n * small / big)); S.fuan.size = big; toast('Two half kits make 1 full kit, so we switched you to ' + n + ' full kit' + (n === 1 ? '' : 's') + '.'); }
     if (n) S.cart[p.code] = S.fuan.size * n; else delete S.cart[p.code];
     drawPacks(); fuanKit(p); renderSummary();
   };
@@ -1044,7 +1075,7 @@ function fuanView() {
   $('#sizes').onclick = ev => {
     const b = ev.target.closest('[data-n]'); if (!b) return;
     const n = Number(b.dataset.n), keep = curN();
-    S.fuan.size = n; setN(keep || 1);
+    S.fuan.size = n; setN(n === small && small < big ? 1 : (keep || 1));
     const k = curN();
     toast(k > 1 ? k + ' × ' + lab(n) + ' in your order' : (n === big ? '1 kit added to your order' : (n === small ? 'Half kit added to your order' : MSG.added[0])));
   };
@@ -1053,6 +1084,11 @@ function fuanView() {
     setN(curN() + (b.dataset.a === 'pinc' ? 1 : -1));
   };
   $('#packs').onchange = ev => { if (ev.target.dataset.a === 'pset') setN(ev.target.value); };
+  if (pb) {
+    const setPb = n => { n = Math.max(0, Math.min(99, Math.floor(Number(n)) || 0)); if (n) S.cart[pb.code] = n; else delete S.cart[pb.code]; $('#pbq').value = n || ''; renderSummary(); };
+    $('#pbstep').onclick = ev => { const b = ev.target.closest('[data-pb]'); if (b) setPb((S.cart[pb.code] || 0) + (b.dataset.pb === '+' ? 1 : -1)); };
+    $('#pbq').onchange = ev => setPb(ev.target.value);
+  }
   bindDetails(true); drawPacks(); fuanKit(p); renderSummary();
   $('#place').onclick = () => { if (!calc().items.length) { $('#err').innerHTML = '<div class="alert err" role="alert">' + MSG.pack + '.</div>'; return; } place(); };
 }
@@ -1060,7 +1096,7 @@ function fuanKit(p) {
   const q = S.cart[p.code] || 0, i = kitInfo(p, q), el = $('#kitline');
   if (!el) return;
   let h = '';
-  if (q === 0 && i.baseRest === 0) h = '<p class="small muted" style="margin-top:12px">Vials from everyone are pooled. Two half kits make one kit, and you can order as many as you like.</p>';
+  if (q === 0 && i.baseRest === 0) h = '<p class="small muted" style="margin-top:12px">Vials from everyone are pooled. Order one half kit, or as many full kits as you like. A second half kit becomes a full kit.</p>';
   else h = '<div style="margin-top:12px">' + kitLine(p, q) + '</div>';
   el.innerHTML = h;
 }
@@ -1070,7 +1106,7 @@ function receiptHtml(o) {
   return '<div class="receipt"><div class="center"><div class="serif h-md">' + esc(S.cfg.businessName) + '</div><div class="muted small">' + esc(o.formTitle) + ' · ' + when(o.createdAt) + '</div></div><div class="divider"></div>' +
     '<div class="line"><span class="muted">Name</span><b>' + esc(o.name) + '</b></div>' +
     '<div class="line"><span class="muted">WhatsApp</span><b>' + esc(o.phone) + '</b></div>' +
-    '<div class="line"><span class="muted">Ship to</span><b>' + esc(o.region) + (o.shipOpt !== 'Standard' ? ' · with ' + esc(o.mammothRef) : '') + '</b></div>' +
+    '<div class="line"><span class="muted">Ship to</span><b>' + esc(o.region) + (o.shipOpt !== 'Standard' ? ' · together with ' + esc(o.mammothRef) : '') + '</b></div>' +
     '<div class="divider"></div>' +
     o.items.map(it => '<div class="item"><div class="line" style="padding:0"><div><b>' + esc(it.name) + '</b><br><span class="muted small">' + esc(it.spec) + '</span></div><div class="num" style="text-align:right"><b>' + fmt(it.total) + '</b><br><span class="muted small">' + it.qty + ' × ' + fmt(it.price) + '</span></div></div>' +
       (o.status === 'Removed' ? '' : '<div style="margin-top:6px">' + (it.waiting === 0 ? '<span class="tag ok">kit complete</span>' : (it.complete ? '<span class="tag kit">' + it.complete + ' complete · ' + it.waiting + ' in bunuan</span>' : '<span class="tag kit">in bunuan' + (it.needed ? ' · ' + it.needed + ' more vials needed' : '') + '</span>')) + '</div>') + '</div>').join('') +
@@ -1094,7 +1130,7 @@ function doneView() {
     '<h1 class="h-lg" style="margin:4px 0 14px">' + title + '</h1>' +
     '<div class="refbox"><div class="muted small">Reference number</div><div class="code" id="refcode">' + esc(o.ref) + '</div><button class="btn sm soft" id="copyRef" style="margin:10px auto 0">' + ICON.copy + ' Copy number</button></div>' +
     '<p class="small muted" style="margin-top:12px">Keep this number. With your WhatsApp number, it lets you edit or remove your order here.</p></section>' +
-    (fresh ? '<div class="alert warn"><b>One more step:</b> tap the green button to send your invoice to ' + esc(S.cfg.businessName) + ' on WhatsApp, or copy it below. ' + esc(S.cfg.paymentNote) + '</div>' : '') +
+    (fresh && o.form === 'FUAN3' && o.pay !== 'Unpaid' ? '<div class="alert ok"><b>Payment received.</b> Your screenshot was sent with your order and we will verify it soon. Tap the green button to send your invoice to ' + esc(S.cfg.businessName) + ' on WhatsApp.</div>' : fresh ? '<div class="alert warn"><b>One more step:</b> tap the green button to send your invoice to ' + esc(S.cfg.businessName) + ' on WhatsApp, or copy it below. ' + esc(S.cfg.paymentNote) + '</div>' : '') +
     '<div class="stack"><a class="btn wa" id="waBtn" href="' + esc(waWeb(o.invoice)) + '" target="_blank" rel="noopener">' + ICON.wa + ' Send invoice on WhatsApp</a>' +
     '<div class="card" style="margin:0;padding:16px"><p class="h-md" style="margin-bottom:4px">WhatsApp not opening?</p><p class="small muted" style="margin-bottom:12px">No worries. Copy your invoice, then paste it in a chat with ' + esc(S.cfg.businessName) + ' at <b>' + esc(localNum(S.cfg.adminWhatsapp)) + '</b>.</p>' +
     '<div class="stack"><button class="btn" id="copyInv2">' + ICON.copy + ' Copy invoice</button><button class="btn ghost" id="copyNum">' + ICON.copy + ' Copy WhatsApp number</button>' +
@@ -1435,7 +1471,7 @@ function openPayment(id) {
 }
 
 /* --- orders tab */
-const PAYS = ['Unpaid', 'Partially Paid', 'Paid (unverified)', 'Paid'], STATS = ['Received', 'Confirmed', 'Packed', 'Shipped', 'Completed', 'Removed'];
+const PAYS = ['Unpaid', 'Partially Paid', 'Paid (unverified)', 'Paid'], STATS = ['Received', 'Confirmed', 'Ordered from supplier', 'Waiting for delivery', 'Arrived', 'Packed', 'Shipped', 'Completed', 'Removed'];
 const payCls = p => p === 'Paid' ? 'ok' : p === 'Unpaid' ? 'bad' : 'kit';
 function paidOf(o) {
   if (o.pay === 'Paid') return o.total;
@@ -1486,7 +1522,7 @@ function adminOrders() {
     '<button class="btn" id="newOrder">Add an order</button>' +
     '<div class="seg2" id="vw"><button class="opt" data-v="orders" aria-pressed="' + (A.view === 'orders') + '">By order</button><button class="opt" data-v="customers" aria-pressed="' + (A.view === 'customers') + '">By customer</button></div>' +
     '<div class="filters"><div class="full search"><span>' + ICON.search + '</span><input class="in" id="fq" type="search" placeholder="Search name, number or reference" value="' + esc(f.q) + '"></div>' +
-    '<select class="in" id="ff"><option value="">All forms</option><option value="MAMMOTH"' + (f.form === 'MAMMOTH' ? ' selected' : '') + '>Mammoth</option><option value="FUAN"' + (f.form === 'FUAN' ? ' selected' : '') + '>Fuan GTT</option></select>' +
+    '<select class="in" id="ff"><option value="">All forms</option><option value="MAMMOTH"' + (f.form === 'MAMMOTH' ? ' selected' : '') + '>Mammoth</option><option value="FUAN"' + (f.form === 'FUAN' ? ' selected' : '') + '>' + esc(A.data.pub.forms.FUAN.title) + '</option><option value="FUAN3"' + (f.form === 'FUAN3' ? ' selected' : '') + '>' + esc(A.data.pub.forms.FUAN3.title) + '</option></select>' +
     '<select class="in" id="fp2"><option value="">Any payment</option>' + PAYS.map(x => '<option' + (f.pay === x ? ' selected' : '') + '>' + x + '</option>').join('') + '</select>' +
     '<select class="in" id="fs"><option value="">Any status</option>' + STATS.map(x => '<option' + (f.status === x ? ' selected' : '') + '>' + x + '</option>').join('') + '</select>' +
     '<select class="in" id="fsort"><option value="new"' + (A.sort === 'new' ? ' selected' : '') + '>Newest first</option><option value="old"' + (A.sort === 'old' ? ' selected' : '') + '>Oldest first</option><option value="big"' + (A.sort === 'big' ? ' selected' : '') + '>Biggest total</option><option value="name"' + (A.sort === 'name' ? ' selected' : '') + '>Name A to Z</option></select></div>' +
@@ -1574,11 +1610,11 @@ function drawEditor() {
   const opts = (arr, v) => arr.map(x => '<option' + (x === v ? ' selected' : '') + '>' + x + '</option>').join('');
   modal(
     '<div class="row spread"><h2 class="h-lg">' + (E.ref ? esc(E.ref) : 'New order') + '</h2><button class="iconbtn" id="mx" aria-label="Close">' + ICON.x + '</button></div>' +
-    '<div class="field" style="margin-top:14px"><label class="f">Group buy</label><select class="in" id="ef" ' + (E.ref ? 'disabled' : '') + '><option value="MAMMOTH"' + (E.form === 'MAMMOTH' ? ' selected' : '') + '>' + esc(d.pub.forms.MAMMOTH.title) + '</option><option value="FUAN"' + (E.form === 'FUAN' ? ' selected' : '') + '>' + esc(d.pub.forms.FUAN.title) + '</option></select></div>' +
+    '<div class="field" style="margin-top:14px"><label class="f">Group buy</label><select class="in" id="ef" ' + (E.ref ? 'disabled' : '') + '><option value="MAMMOTH"' + (E.form === 'MAMMOTH' ? ' selected' : '') + '>' + esc(d.pub.forms.MAMMOTH.title) + '</option><option value="FUAN"' + (E.form === 'FUAN' ? ' selected' : '') + '>' + esc(d.pub.forms.FUAN.title) + '</option><option value="FUAN3"' + (E.form === 'FUAN3' ? ' selected' : '') + '>' + esc(d.pub.forms.FUAN3.title) + '</option></select></div>' +
     '<div class="two"><div class="field"><label class="f">Name</label><input class="in" id="en" value="' + esc(E.name) + '"></div><div class="field"><label class="f">WhatsApp</label><input class="in" id="ep" type="tel" value="' + esc(E.phone) + '"></div></div>' +
     '<div class="two"><div class="field"><label class="f">Region</label><select class="in" id="er">' + opts(REGIONS, E.region) + '</select></div>' +
-    '<div class="field" id="combBox"><label class="f">Fuan shipping</label><select class="in" id="ec"><option value="0"' + (!E.combined ? ' selected' : '') + '>Regular</option><option value="1"' + (E.combined ? ' selected' : '') + '>With Mammoth</option></select></div></div>' +
-    '<div class="field" id="mmBoxA"><label class="f">Linked Mammoth reference</label><input class="in" id="em" value="' + esc(E.mammothRef) + '" placeholder="BLVC-MMGB-XXXXXX"></div>' +
+    '<div class="field" id="combBox"><label class="f">Shipping</label><select class="in" id="ec"><option value="0"' + (!E.combined ? ' selected' : '') + '>Regular</option><option value="1"' + (E.combined ? ' selected' : '') + '>Together with another order</option></select></div></div>' +
+    '<div class="field" id="mmBoxA"><label class="f">Ships together with (reference of the main order)</label><input class="in" id="em" value="' + esc(E.mammothRef) + '" placeholder="BLVC-MMGB-XXXXXX"></div>' +
     '<label class="f">Items</label><div id="eitems"></div><button class="btn soft sm" id="addItem" style="margin-bottom:16px">Add item</button>' +
     '<div class="two"><div class="field"><label class="f">Packaging fee <span class="muted">(blank = default)</span></label><input class="in" id="epk" type="number" step="0.01" value="' + esc(E.packagingFee) + '"></div><div class="field"><label class="f">Shipping fee <span class="muted">(blank = default)</span></label><input class="in" id="esh" type="number" step="0.01" value="' + esc(E.shippingFee) + '"></div></div>' +
     '<div class="two"><div class="field"><label class="f">Your packaging cost <span class="muted">(what you paid)</span></label><input class="in" id="epc" type="number" step="0.01" min="0" value="' + esc(E.packCost) + '"></div><div class="field"><label class="f">Your shipping cost <span class="muted">(what you paid)</span></label><input class="in" id="esc2" type="number" step="0.01" min="0" value="' + esc(E.shipCost) + '"></div></div>' +
@@ -1600,7 +1636,7 @@ function drawEditor() {
     if (!(await confirmBox('Delete this order for good?', 'It disappears from the sheet too. Use the Removed status if you want to keep a record.', 'Delete permanently', 'Keep it'))) { drawEditor(); return; }
     try { await adminCall('adminDeleteOrder', E.ref); closeModal(); adminView(); toast('Order deleted'); } catch (e) { drawEditor(); }
   };
-  function toggleComb() { $('#combBox').classList.toggle('hide', E.form !== 'FUAN'); $('#mmBoxA').classList.toggle('hide', !(E.form === 'FUAN' && E.combined)); }
+  function toggleComb() { $('#mmBoxA').classList.toggle('hide', !E.combined); }
   toggleComb(); drawItems();
   if (E.ref) bindPayBox(d.orders.find(x => x.ref === E.ref) || {ref: E.ref}, openOrderEditor);
 }
@@ -1661,7 +1697,7 @@ function adminInventory() {
   document.querySelectorAll('#ichips [data-f]').forEach(b => b.onclick = () => { I.f = b.dataset.f; adminInventory(); });
   $('#cpfwd').onclick = () => {
     const lines = [];
-    ['MAMMOTH', 'FUAN'].forEach(f => {
+    ['MAMMOTH', 'FUAN', 'FUAN3'].forEach(f => {
       const rs = withOrders.filter(r => r.p.form === f && r.kits > 0).sort((a, b) => a.p.name.localeCompare(b.p.name));
       if (!rs.length) return;
       lines.push(d.pub.forms[f].title + ': kits to forward');
@@ -1693,7 +1729,7 @@ function adminProceeds() {
     '<div class="card center" style="padding:18px"><div class="muted small">Total fees left after your costs</div><div class="big" style="font-size:38px">' + fmt(left(total)) + '</div><div class="small muted">Collected ' + fmt(total.col) + ' minus costs ' + fmt(total.cost) + '</div></div>' +
     (noCost ? '<div class="alert warn">' + noCost + ' paid order' + (noCost === 1 ? ' has' : 's have') + ' no cost entered yet. Open an order (or a customer in Orders → By customer) and add what you paid for packaging and shipping.</div>' : '') +
     row('Packaging fees', pk) + row('Shipping fees', sh) +
-    '<div class="card" style="padding:16px"><h3 class="h-md" style="margin-bottom:6px">Shipping by region</h3>' + regs + '<p class="small muted" style="margin-top:8px">Fuan orders combined with Mammoth have no shipping fee, so they are not counted here.</p></div>' +
+    '<div class="card" style="padding:16px"><h3 class="h-md" style="margin-bottom:6px">Shipping by region</h3>' + regs + '<p class="small muted" style="margin-top:8px">Orders that ship together with another order have no shipping fee of their own, so they are not counted here.</p></div>' +
     '<div class="card" style="padding:16px"><h3 class="h-md" style="margin-bottom:6px">Item sales (for your supplier)</h3><div class="iline"><span>Expected</span><b class="num">' + fmt(S(live, o => o.subtotal)) + '</b></div><div class="iline"><span>Collected (orders marked Paid)</span><b class="num">' + fmt(S(paid, o => o.subtotal)) + '</b></div></div>';
 }
 
@@ -1704,7 +1740,7 @@ function adminProducts() {
   const draw = () => {
     const rows = d.products.filter(p => !q && !A.prodQ ? true : (p.name + ' ' + p.spec + ' ' + p.code + ' ' + p.category).toLowerCase().includes(A.prodQ.trim().toLowerCase()));
     $('#plist').innerHTML = rows.slice(0, 120).map(p => '<button class="ocard" data-pc="' + esc(p.form + '|' + p.code) + '"><div class="row spread"><span><b>' + esc(p.name) + '</b> <span class="muted small">' + esc(p.spec) + '</span></span><b class="num">' + (p.vialPrice ? fmt(p.vialPrice) : 'no price') + '</b></div>' +
-      '<div class="small muted">' + (p.form === 'MAMMOTH' ? 'Mammoth' : 'Fuan') + ' · ' + esc(p.category) + ' · ' + esc(p.code) + ' · min ' + p.min + ' · ' + (p.active ? 'available' : 'hidden') + '</div></button>').join('') + (rows.length > 120 ? '<p class="muted small center">Showing 120 of ' + rows.length + '. Search to narrow down.</p>' : '');
+      '<div class="small muted">' + esc((d.pub.forms[p.form] || {}).title || p.form) + ' · ' + esc(p.category) + ' · ' + esc(p.code) + ' · min ' + p.min + ' · ' + (p.active ? 'available' : 'hidden') + '</div></button>').join('') + (rows.length > 120 ? '<p class="muted small center">Showing 120 of ' + rows.length + '. Search to narrow down.</p>' : '');
     document.querySelectorAll('[data-pc]').forEach(b => b.onclick = () => { const [f, c] = b.dataset.pc.split('|'); openProductEditor(d.products.find(p => p.form === f && p.code === c)); });
   };
   $('#pq').oninput = e => { A.prodQ = e.target.value; draw(); };
@@ -1716,7 +1752,7 @@ function openProductEditor(p) {
   const P = p ? Object.assign({}, p) : {form: 'MAMMOTH', code: '', name: '', spec: '', usd: '', kitPrice: '', min: 2, kitSize: 10, sizes: [], unit: 'vial', active: true};
   const orig = p ? p.code : '';
   modal('<div class="row spread"><h2 class="h-lg">' + (isNew ? 'New product' : esc(P.name)) + '</h2><button class="iconbtn" id="mx" aria-label="Close">' + ICON.x + '</button></div>' +
-    '<div class="two" style="margin-top:14px"><div class="field"><label class="f">Group buy</label><select class="in" id="pf" ' + (isNew ? '' : 'disabled') + '><option value="MAMMOTH"' + (P.form === 'MAMMOTH' ? ' selected' : '') + '>Mammoth</option><option value="FUAN"' + (P.form === 'FUAN' ? ' selected' : '') + '>Fuan</option></select></div><div class="field"><label class="f">Item code</label><input class="in" id="pc" value="' + esc(P.code) + '"></div></div>' +
+    '<div class="two" style="margin-top:14px"><div class="field"><label class="f">Group buy</label><select class="in" id="pf" ' + (isNew ? '' : 'disabled') + '><option value="MAMMOTH"' + (P.form === 'MAMMOTH' ? ' selected' : '') + '>Mammoth</option><option value="FUAN"' + (P.form === 'FUAN' ? ' selected' : '') + '>Fuan GB2</option><option value="FUAN3"' + (P.form === 'FUAN3' ? ' selected' : '') + '>Fuan GB3</option></select></div><div class="field"><label class="f">Item code</label><input class="in" id="pc" value="' + esc(P.code) + '"></div></div>' +
     '<div class="field"><label class="f">Product name</label><input class="in" id="pn" value="' + esc(P.name) + '"></div>' +
     '<div class="field"><label class="f">Specification</label><input class="in" id="ps" value="' + esc(P.spec) + '" placeholder="e.g. 10 mg/vial"></div>' +
     '<div class="field"><label class="f">Category</label><input class="in" id="pcat" list="catlist" value="' + esc(P.category || '') + '" placeholder="Pick one or type a new category"><datalist id="catlist">' + (d.categories || []).map(c => '<option value="' + esc(c) + '">').join('') + '</datalist></div>' +
@@ -1756,14 +1792,14 @@ function adminSettings() {
     inp('s_usdRate', 'USD to PHP rate (Mammoth)', s.usdRate, 'number', 'Changing this updates every Mammoth price per kit and per vial. Existing orders keep their price.') +
     inp('s_packagingFee', 'Packaging fee per order (₱)', s.packagingFee, 'number') +
     '<div class="two">' + inp('s_shipLuzon', 'Luzon shipping', s.shipLuzon, 'number') + inp('s_shipVisayas', 'Visayas shipping', s.shipVisayas, 'number') + '</div>' + inp('s_shipMindanao', 'Mindanao shipping', s.shipMindanao, 'number') +
-    yn('s_fuanCombinedWaivesPackaging', 'Fuan combined with Mammoth: also waive packaging?', s.fuanCombinedWaivesPackaging) + '</div>' +
+    '<p class="hint">The packaging fee is fixed for every order, even when orders ship together. Only Pharma Bac ordered on its own has no packaging fee.</p></div>' +
     '<div class="card"><h2 class="h-md" style="margin-bottom:12px">Bunuan rules</h2>' +
     yn('s_singleVialInBunuan', 'Allow 1-vial orders when a kit is in bunuan?', s.singleVialInBunuan) + '<p class="hint">Off by default: every item keeps its minimum. Turn it on when you want customers to help fill an open kit with a single vial. You can also switch it off for individual products in the Products tab.</p></div>' +
     '<div class="card"><h2 class="h-md" style="margin-bottom:12px">Order forms</h2>' +
     inp('s_mammothTitle', 'Mammoth form title', s.mammothTitle) + yn('s_mammothOpen', 'Mammoth open for new orders?', s.mammothOpen) +
-    inp('s_fuanTitle', 'Fuan form title', s.fuanTitle) + yn('s_fuanOpen', 'Fuan open for new orders?', s.fuanOpen) + '</div>' +
+    inp('s_fuanTitle', 'Fuan GB2 form title', s.fuanTitle) + yn('s_fuanOpen', 'Fuan GB2 open for new orders?', s.fuanOpen) + inp('s_fuan3Title', 'Fuan GB3 form title', s.fuan3Title) + yn('s_fuan3Open', 'Fuan GB3 open for new orders?', s.fuan3Open) + '<p class="hint">Fuan GB3 has its own products and orders. Edit its price under Products (group buy: Fuan GB3). It only appears on the home page once it is open.</p></div>' +
     '<div class="card"><h2 class="h-md" style="margin-bottom:12px">Yixing order form</h2>' +
-    inp('s_yixTitle', 'Yixing form title', s.yixTitle) + yn('s_yixOpen', 'Yixing open for new orders?', s.yixOpen) + yn('s_yixBunuan', 'Bunuan mode on? (Yes = a single vial is allowed, No = at least 2 vials per order)', s.yixBunuan) + yn('s_yixCombinedWaivesPackaging', 'Combined shipping also waives Yixing packaging?', s.yixCombinedWaivesPackaging) +
+    inp('s_yixTitle', 'Yixing form title', s.yixTitle) + yn('s_yixOpen', 'Yixing open for new orders?', s.yixOpen) + yn('s_yixBunuan', 'Bunuan mode on? (Yes = a single vial is allowed, No = at least 2 vials per order)', s.yixBunuan) +
     '<div class="two">' + inp('s_yixPackaging', 'Packaging fee per order (₱)', s.yixPackaging, 'number') + inp('s_yixLabelFee', 'Label fee per vial (₱)', s.yixLabelFee, 'number', '0 means labels are free.') + '</div>' +
     '<div class="two">' + inp('s_yixShipLuzon', 'Luzon shipping (₱)', s.yixShipLuzon, 'number') + inp('s_yixShipVisayas', 'Visayas shipping (₱)', s.yixShipVisayas, 'number') + '</div>' + inp('s_yixShipMindanao', 'Mindanao shipping (₱)', s.yixShipMindanao, 'number', 'Local SF is worked out from the buyer\'s region. You can still fix a different amount on any single order.') +
     '<div class="field"><label class="f" for="s_yixNote">Note shown on the Yixing form</label><textarea class="in" id="s_yixNote">' + esc(s.yixNote || '') + '</textarea></div>' +
@@ -1810,8 +1846,8 @@ function adminSettings() {
     const btn = $('#ssave'); btn.disabled = true; btn.textContent = 'Saving…';
     const g = id => $('#' + id).value;
     const body = {usdRate: g('s_usdRate'), packagingFee: g('s_packagingFee'), shipLuzon: g('s_shipLuzon'), shipVisayas: g('s_shipVisayas'), shipMindanao: g('s_shipMindanao'),
-      fuanCombinedWaivesPackaging: g('s_fuanCombinedWaivesPackaging'), singleVialInBunuan: g('s_singleVialInBunuan'), mammothTitle: g('s_mammothTitle'), mammothOpen: g('s_mammothOpen'), fuanTitle: g('s_fuanTitle'), fuanOpen: g('s_fuanOpen'),
-      businessName: g('s_businessName'), adminWhatsapp: g('s_adminWhatsapp'), communityLink: g('s_communityLink'), customerViewLink: g('s_customerViewLink'), siteLink: g('s_siteLink'), yixTitle: g('s_yixTitle'), welcomeTitle: g('s_welcomeTitle'), welcomeText: g('s_welcomeText'), welcomeTag: g('s_welcomeTag'), welcomePoints: g('s_welcomePoints'), yixOpen: g('s_yixOpen'), yixBunuan: g('s_yixBunuan'), yixCombinedWaivesPackaging: g('s_yixCombinedWaivesPackaging'), yixPackaging: g('s_yixPackaging'), yixShipLuzon: g('s_yixShipLuzon'), yixShipVisayas: g('s_yixShipVisayas'), yixShipMindanao: g('s_yixShipMindanao'), yixLabelFee: g('s_yixLabelFee'), yixNote: g('s_yixNote'), announcement: g('s_announcement'), paymentNote: g('s_paymentNote')};
+      fuan3Title: g('s_fuan3Title'), fuan3Open: g('s_fuan3Open'), singleVialInBunuan: g('s_singleVialInBunuan'), mammothTitle: g('s_mammothTitle'), mammothOpen: g('s_mammothOpen'), fuanTitle: g('s_fuanTitle'), fuanOpen: g('s_fuanOpen'),
+      businessName: g('s_businessName'), adminWhatsapp: g('s_adminWhatsapp'), communityLink: g('s_communityLink'), customerViewLink: g('s_customerViewLink'), siteLink: g('s_siteLink'), yixTitle: g('s_yixTitle'), welcomeTitle: g('s_welcomeTitle'), welcomeText: g('s_welcomeText'), welcomeTag: g('s_welcomeTag'), welcomePoints: g('s_welcomePoints'), yixOpen: g('s_yixOpen'), yixBunuan: g('s_yixBunuan'), yixPackaging: g('s_yixPackaging'), yixShipLuzon: g('s_yixShipLuzon'), yixShipVisayas: g('s_yixShipVisayas'), yixShipMindanao: g('s_yixShipMindanao'), yixLabelFee: g('s_yixLabelFee'), yixNote: g('s_yixNote'), announcement: g('s_announcement'), paymentNote: g('s_paymentNote')};
     try { await adminCall('adminSaveSettings', body); await refreshPublic(); adminView(); toast('Settings saved. The website is updated'); }
     catch (e) { btn.disabled = false; btn.textContent = 'Save settings'; $('#serr').innerHTML = '<div class="alert err" role="alert">' + esc(e.message) + '</div>'; }
   };
@@ -1848,18 +1884,20 @@ function yixCalc() {
     const [code, unit] = k.split('|'), p = Y.products.find(x => x.code === code); if (!p) return;
     const old = e && e.items.find(i => i.code === code && i.unit === unit);
     const price = old ? old.price : yixPrice(p, unit);
-    items.push({p, code, unit, q, price, total: Math.round(q * price * 100) / 100, vials: q * (unit === 'Kit' ? p.per : 1)});
+    items.push({p, code, unit, q, price, total: Math.round(q * price * 100) / 100, vials: q * (unit === 'Kit' ? p.per : 1), addon: !!p.addon});
   });
   const sub = Math.round(items.reduce((a, i) => a + i.total, 0) * 100) / 100, vials = items.reduce((a, i) => a + i.vials, 0);
   const lab = e && !e.editItems ? e.labels : d.labels;
-  const label = lab ? Math.round(cfg.labelFee * vials * 100) / 100 : 0;
+  const lvials = items.reduce((a, i) => a + (i.addon ? 0 : i.vials), 0);
+  const label = lab ? Math.round(cfg.labelFee * lvials * 100) / 100 : 0;
   const mmOk = d.combined && Y.mm && Y.mm.ref === d.combineRef.trim().toUpperCase();
   const reg = mmOk ? Y.mm.region : d.region;
   const ship = mmOk ? 0 : (e && e.shipManual && !d.combined ? e.shipping : (reg ? (cfg.ship[reg] || 0) : 0));
-  const packaging = mmOk && cfg.waivePack ? 0 : cfg.packaging;
-  const byCode = {}; items.forEach(i => { byCode[i.code] = byCode[i.code] || {n: i.p.name + (i.p.spec ? ' ' + i.p.spec : ''), v: 0}; byCode[i.code].v += i.vials; });
+  const onlyAddons = items.length > 0 && items.every(i => i.addon);
+  const packaging = onlyAddons ? 0 : cfg.packaging;
+  const byCode = {}; items.filter(i => !i.addon).forEach(i => { byCode[i.code] = byCode[i.code] || {n: i.p.name + (i.p.spec ? ' ' + i.p.spec : ''), v: 0}; byCode[i.code].v += i.vials; });
   const shorts = Object.values(byCode).filter(x => x.v < cfg.minVials);
-  return {items, sub, vials, shorts, packaging, label, ship, reg, mmOk, total: Math.round((sub + packaging + label + ship) * 100) / 100};
+  return {items, sub, vials, shorts, onlyAddons, packaging, label, ship, reg, mmOk, total: Math.round((sub + packaging + label + ship) * 100) / 100};
 }
 async function yixStart() {
   S.yix.cart = {}; S.yix.q = ''; S.yix.editing = null; S.yix.draft = yixBlank(); S.yix.saved = ''; S.yix.mm = null;
@@ -1873,15 +1911,13 @@ function yixShopView() {
   $('#app').innerHTML =
     '<div class="top"><button class="iconbtn" id="back" aria-label="Back">' + ICON.back + '</button><div class="grow"><div class="ttl">' + esc(f.title) + '</div><div class="sub">' + (e ? 'Editing ' + esc(e.ref) : 'Step 1 of 2 · Choose your items') + '</div></div></div>' +
     (!f.open && !e ? '<div class="alert err">This group buy is closed for new orders right now.</div>' : '') +
-    '<div class="rules"><div><b>Pay as you order</b><span>Your order is placed together with your payment screenshot.</span></div><div><b>Min. ' + f.minVials + ' vial' + (f.minVials === 1 ? '' : 's') + ' each</b><span>' + (f.bunuan ? 'Bunuan mode is on, so a single vial is welcome.' : 'For every item you order. A kit counts as all the vials in it.') + '</span></div><div><b>Ship together</b><span>Already ordered in Mammoth or Fuan? Combine shipping on the next step.</span></div></div>' +
+    '<div class="rules"><div><b>Pay as you order</b><span>Your order is placed together with your payment screenshot.</span></div><div><b>Min. ' + f.minVials + ' vial' + (f.minVials === 1 ? '' : 's') + ' each</b><span>' + (f.bunuan ? 'Bunuan mode is on, so a single vial is welcome.' : 'For every item you order. A kit counts as all the vials in it.') + '</span></div><div><b>Ship together</b><span>Already placed another order? Combine shipping on the next step. Each order keeps its own packaging fee.</span></div></div>' + (S.yix.products.some(p => p.addon) ? '<div class="alert ok" style="margin-top:10px">Add-ons like <b>' + esc(S.yix.products.find(p => p.addon).name) + '</b> have no minimum, and no packaging fee when they are your only item.</div>' : '') +
     (f.note ? '<div class="alert warn">' + esc(f.note) + '</div>' : '') +
     '<div class="search"><span>' + ICON.search + '</span><input class="in" id="q" type="search" placeholder="Search an item, e.g. retatrutide" aria-label="Search items" value="' + esc(Y.q) + '"></div>' +
     '<div class="cats" id="ycats" role="group" aria-label="Categories"></div>' +
-    '<div class="chips"><button class="chip" id="onlyAv" aria-pressed="' + Y.only + '">Available now only</button></div>' +
     '<div id="list"></div><div id="cartbar"></div>';
   $('#back').onclick = () => go(e ? 'yixdone' : 'welcome');
   $('#q').oninput = ev => { Y.q = ev.target.value; yixList(); };
-  $('#onlyAv').onclick = ev => { Y.only = !Y.only; ev.currentTarget.setAttribute('aria-pressed', Y.only); yixList(); };
   $('#list').onclick = yixListClick; $('#list').onchange = yixListChange;
   yixCats(); yixList(); yixCartBar();
 }
@@ -1942,7 +1978,7 @@ function yixCartBar() {
   const c = yixCalc(), el = $('#cartbar'), min = S.cfg.yix.minVials; if (!el) return;
   if (!c.items.length) { el.innerHTML = ''; return; }
   const short = c.shorts.length > 0, sh = c.shorts[0], need = sh ? min - sh.v : 0;
-  const sum = '<b>' + c.vials + ' vial' + (c.vials === 1 ? '' : 's') + '</b> · ' + c.items.length + ' item' + (c.items.length === 1 ? '' : 's') + '<br><span class="' + (short ? 'warn-t' : 'muted') + ' small">' + (short ? 'Add ' + need + ' more vial' + (need === 1 ? '' : 's') + ' of ' + esc(sh.n) + ' (min. ' + min + ' each)' : 'Subtotal ' + fmt(c.sub)) + '</span>';
+  const sum = '<b>' + c.vials + (c.onlyAddons ? ' piece' : ' vial') + (c.vials === 1 ? '' : 's') + '</b> · ' + c.items.length + ' item' + (c.items.length === 1 ? '' : 's') + '<br><span class="' + (short ? 'warn-t' : 'muted') + ' small">' + (short ? 'Add ' + need + ' more vial' + (need === 1 ? '' : 's') + ' of ' + esc(sh.n) + ' (min. ' + min + ' each)' : 'Subtotal ' + fmt(c.sub)) + '</span>';
   const cur = el.querySelector('.sum');
   if (cur) { cur.innerHTML = sum; el.querySelector('#toDetails').disabled = short; return; }
   el.innerHTML = '<div class="cartbar"><div class="in-bar"><div class="sum">' + sum + '</div><button class="btn" id="toDetails"' + (short ? ' disabled' : '') + '>Continue</button></div></div>';
@@ -1950,8 +1986,8 @@ function yixCartBar() {
 }
 function yixSummary() {
   const c = yixCalc(), d = S.yix.draft;
-  return c.items.map(i => '<div class="item"><div class="line" style="padding:0"><div><b>' + esc(i.p.name) + '</b><br><span class="muted small">' + esc(i.p.spec) + '</span></div><div class="num" style="text-align:right"><b>' + fmt(i.total) + '</b><br><span class="muted small">' + i.q + ' ' + i.unit.toLowerCase() + (i.q === 1 ? '' : 's') + ' × ' + fmt(i.price) + '</span></div></div></div>').join('') +
-    '<div class="divider"></div><div class="line"><span>Items subtotal</span><span class="num">' + fmt(c.sub) + '</span></div><div class="line"><span>Packaging fee</span><span class="num">' + fmt(c.packaging) + '</span></div>' +
+  return c.items.map(i => '<div class="item"><div class="line" style="padding:0"><div><b>' + esc(i.p.name) + '</b><br><span class="muted small">' + esc(i.p.spec) + '</span></div><div class="num" style="text-align:right"><b>' + fmt(i.total) + '</b><br><span class="muted small">' + i.q + ' ' + (i.addon ? 'piece' : i.unit.toLowerCase()) + (i.q === 1 ? '' : 's') + ' × ' + fmt(i.price) + '</span></div></div></div>').join('') +
+    '<div class="divider"></div><div class="line"><span>Items subtotal</span><span class="num">' + fmt(c.sub) + '</span></div><div class="line"><span>Packaging fee' + (c.onlyAddons ? ' <span class="muted small">(none for add-ons only)</span>' : '') + '</span><span class="num">' + fmt(c.packaging) + '</span></div>' +
     (c.label ? '<div class="line"><span>Vial labels &amp; numbers</span><span class="num">' + fmt(c.label) + '</span></div>' : '') +
     '<div class="line"><span>Shipping (Local SF)' + (c.mmOk ? ' · combined' : c.reg ? ' · ' + c.reg : '') + '</span><span class="num">' + (c.mmOk || c.reg ? fmt(c.ship) : '<span class="muted small">pick a region</span>') + '</span></div><div class="line total"><span>Total to pay</span><span class="num">' + fmt(c.total) + '</span></div>';
 }
@@ -1969,7 +2005,7 @@ function yixDetailsView() {
     '<div class="field" style="margin-bottom:0"><label class="f" for="em">Email <span class="muted">(optional)</span></label><input class="in" id="em" type="email" autocomplete="email" placeholder="you@gmail.com" value="' + esc(d.email) + '">' +
     '<label class="switch" style="margin-top:12px"><input type="checkbox" id="ei"' + (d.emailInv ? ' checked' : '') + '><span class="sw"></span><span>Email me my receipt, payment confirmation and shipping notice</span></label></div></div>' +
     '<div class="card"><h2 class="sec"><span class="n">2</span>Shipping</h2>' +
-    '<div class="field"><div class="seg two" id="shipMode"><button class="opt" type="button" data-m="own" aria-pressed="' + !d.combined + '">Ship to my region<small>Regular Local SF</small></button><button class="opt" type="button" data-m="mm" aria-pressed="' + d.combined + '">Ship with my other order<small>Mammoth or Fuan · no shipping fee</small></button></div></div>' +
+    '<div class="field"><div class="seg two" id="shipMode"><button class="opt" type="button" data-m="own" aria-pressed="' + !d.combined + '">Ship to my region<small>Regular Local SF</small></button><button class="opt" type="button" data-m="mm" aria-pressed="' + d.combined + '">Ship with my other order<small>Mammoth, Fuan or Yixing · no shipping fee</small></button></div></div>' +
     '<div id="shipArea"></div>' +
     '<div class="addr" id="addr"><div class="addr-h"><b>Delivery address</b><span class="addr-prog" id="addrProg"></span></div>' +
     '<div class="field"><label class="f" for="ad_st">House / unit no. &amp; street</label><input class="in" id="ad_st" autocomplete="address-line1" placeholder="e.g. Unit 5, 12 Rizal St." value="' + esc(d.a.st) + '"></div>' +
@@ -2001,12 +2037,12 @@ function yixDetailsView() {
     const a = $('#shipArea');
     if (d.combined) {
       const ok = Y.mm && Y.mm.ref === d.combineRef.trim().toUpperCase();
-      a.innerHTML = '<div class="field"><label class="f" for="mmRef">Your Mammoth or Fuan reference number</label><div class="row"><input class="in grow" id="mmRef" placeholder="BLVC-MMGB-XXXXXX" autocapitalize="characters" value="' + esc(d.combineRef) + '"><button class="btn sm" id="mmCheck" type="button">Check</button></div><div id="mmMsg">' +
+      a.innerHTML = '<div class="field"><label class="f" for="mmRef">Reference number of your other order</label><div class="row"><input class="in grow" id="mmRef" placeholder="e.g. BLVC-MMGB-XXXXXX" autocapitalize="characters" value="' + esc(d.combineRef) + '"><button class="btn sm" id="mmCheck" type="button">Check</button></div><div id="mmMsg">' +
         (ok ? '<div class="alert ok">Found <b>' + esc(Y.mm.formTitle || 'your order') + '</b>. Both orders ship together to <b>' + esc(Y.mm.region) + '</b>, so Yixing shipping is ' + fmt(0) + '.</div>' : '') + '</div><p class="hint">We match it with the WhatsApp number above.</p></div>';
       $('#mmRef').oninput = ev => { d.combineRef = ev.target.value.toUpperCase(); Y.mm = null; $('#mmMsg').innerHTML = ''; sumEl(); };
       $('#mmCheck').onclick = async () => {
         const b = $('#mmCheck'), m = $('#mmMsg'); b.disabled = true; b.textContent = 'Checking…';
-        try { const r = await call('yixCheckRef', d.combineRef.trim(), d.phone); Y.mm = r; d.combineRef = r.ref; shipArea(); sumEl(); }
+        try { const r = await call('yixCheckRef', d.combineRef.trim(), d.phone, e ? e.ref : ''); Y.mm = r; d.combineRef = r.ref; shipArea(); sumEl(); }
         catch (ex) { Y.mm = null; m.innerHTML = '<div class="alert err">' + esc(ex.message) + '</div>'; b.disabled = false; b.textContent = 'Check'; }
       };
     } else {
@@ -2063,7 +2099,7 @@ async function yixPlace() {
   if (d.name.trim().length < 2) add('nm', 'Your name', 'Please enter your full name.');
   if (d.phone.replace(/\D/g, '').length < 10) add('ph', 'WhatsApp number', 'Enter a valid number, e.g. 0917 123 4567.');
   if (d.emailInv && !/^\S+@\S+\.\S+$/.test(d.email.trim())) add('em', 'Email', 'Add a valid email to get the invoice, or turn the switch off.');
-  if (d.combined) { if (!(Y.mm && Y.mm.ref === d.combineRef.trim().toUpperCase())) add('mmRef', 'Mammoth / Fuan reference', 'Enter your reference and tap Check, or choose Ship to my region.'); }
+  if (d.combined) { if (!(Y.mm && Y.mm.ref === d.combineRef.trim().toUpperCase())) add('mmRef', 'Reference of your other order', 'Enter your reference and tap Check, or choose Ship to my region.'); }
   else if (!d.region) add('reg', 'Region', 'Pick Luzon, Visayas or Mindanao.');
   if (d.a.st.trim().length < 3) add('ad_st', 'House / unit no. & street', 'Enter your house or unit number and street.');
   if (d.a.br.trim().length < 2) add('ad_br', 'Barangay', 'Enter your barangay.');
@@ -2086,10 +2122,10 @@ async function yixPlace() {
     Y.proofImg = null; go('yixdone'); toast(e ? 'Your order is updated' : 'Order placed with your payment');
   } catch (ex) { fail(ex.message); btn.disabled = false; btn.textContent = e ? 'Save changes' : 'Place order & send payment'; }
 }
-const YSTEPS = ['Received', 'Confirmed', 'Packed', 'Shipped'];
+const YSTEPS = ['Received', 'Confirmed', 'Ordered from supplier', 'Waiting for delivery', 'Arrived', 'Packed', 'Shipped'], YSHORT = {'Ordered from supplier': 'Ordered', 'Waiting for delivery': 'Waiting', 'Arrived': 'Arrived'};
 function yixTracker(o) {
   const at = Math.max(0, YSTEPS.indexOf(o.status === 'Completed' ? 'Shipped' : o.status));
-  return '<ol class="track">' + YSTEPS.map((s, i) => '<li class="' + (i < at ? 'done' : i === at ? 'now' : '') + '"><i></i><span>' + s + '</span></li>').join('') + '</ol>';
+  return '<ol class="track">' + YSTEPS.map((s, i) => '<li class="' + (i < at ? 'done' : i === at ? 'now' : '') + '"><i></i><span>' + (YSHORT[s] || s) + '</span></li>').join('') + '</ol>';
 }
 function yixReceipt(o) {
   return '<div class="receipt"><div class="center"><div class="serif h-md">' + esc(S.cfg.businessName) + '</div><div class="muted small">' + esc(o.formTitle) + ' · ' + when(o.createdAt) + '</div></div><div class="divider"></div>' +
@@ -2235,7 +2271,7 @@ function adminYixing() {
   const live = d.yix.filter(o => o.status !== 'Removed');
   const total = live.reduce((a, o) => a + o.total, 0), paid = live.reduce((a, o) => a + o.paid, 0);
   const toShip = live.filter(o => o.status !== 'Shipped' && o.status !== 'Completed').length;
-  const chips = [['todo', 'To ship'], ['pay', 'Needs payment'], ['shipped', 'Shipped'], ['all', 'All']];
+  const nLab = live.filter(o => o.labels).length, chips = [['todo', 'To ship'], ['pay', 'Needs payment'], ['lab', 'Labels (' + nLab + ')'], ['shipped', 'Shipped'], ['all', 'All']];
   $('#tab').innerHTML =
     '<div class="stats"><div class="stat"><b>' + live.length + '</b><span>orders</span></div><div class="stat"><b>' + toShip + '</b><span>to ship</span></div><div class="stat"><b>' + live.filter(o => o.payNow).length + '</b><span>awaiting payment</span></div></div>' +
     '<div class="sumline"><span>Total <b>' + fmt(total) + '</b></span><span>Paid <b>' + fmt(paid) + '</b></span><span>Balance <b>' + fmt(total - paid) + '</b></span></div>' +
@@ -2245,12 +2281,12 @@ function adminYixing() {
   const draw = () => {
     const q = Y.q.trim().toLowerCase();
     const rows = d.yix.filter(o => o.status !== 'Removed' && (!q || (o.ref + ' ' + o.name + ' ' + o.phone).toLowerCase().includes(q)) &&
-      (Y.f === 'all' || (Y.f === 'todo' && o.status !== 'Shipped' && o.status !== 'Completed') || (Y.f === 'pay' && o.due > 0.004 && o.pay !== 'Paid') || (Y.f === 'shipped' && (o.status === 'Shipped' || o.status === 'Completed'))));
+      (Y.f === 'all' || (Y.f === 'todo' && o.status !== 'Shipped' && o.status !== 'Completed') || (Y.f === 'pay' && o.due > 0.004 && o.pay !== 'Paid') || (Y.f === 'lab' && o.labels) || (Y.f === 'shipped' && (o.status === 'Shipped' || o.status === 'Completed'))));
     $('#ylist').innerHTML = rows.length ? rows.map(o =>
       '<div class="ocard" style="cursor:default"><button class="ohead" data-yref="' + esc(o.ref) + '"><div class="row spread"><span class="ref">' + esc(o.ref) + '</span><b class="num">' + fmt(o.total) + '</b></div>' +
       '<div>' + esc(o.name) + ' <span class="muted">· ' + esc(o.phone) + ' · ' + esc(o.region) + '</span></div>' +
       '<div style="margin-top:6px"><span class="tag ' + payCls(o.pay) + '" style="margin-left:0">' + esc(o.pay) + '</span><span class="tag plain">' + esc(o.status) + '</span>' +
-      (o.payNow ? '<span class="tag bad">payment due</span>' : '') + (o.labels ? '<span class="tag plain">labels</span>' : '') + (o.combinedRef ? '<span class="tag ok">ships with ' + esc(o.combinedRef) + '</span>' : '') + (o.shipManual ? '<span class="tag kit">shipping fixed</span>' : '') +
+      (o.payNow ? '<span class="tag bad">payment due</span>' : '') + (o.labels ? '<span class="tag lab">🏷 labels &amp; numbers</span>' : '') + (o.combinedRef ? '<span class="tag ok">ships with ' + esc(o.combinedRef) + '</span>' : '') + (o.shipManual ? '<span class="tag kit">shipping fixed</span>' : '') +
       (o.email ? '<span class="tag plain">' + (o.emailInv ? 'email invoice' : 'email') + '</span>' : '') + (o.courier ? '<span class="tag plain">' + esc(o.courier) + (o.tracking ? ' · ' + esc(o.tracking) : '') + '</span>' : '') + '</div>' +
       '<div class="muted small" style="margin-top:6px">' + o.items.map(i => esc(i.name) + ' ' + esc(i.spec) + ' ×' + i.qty + ' ' + i.unit.toLowerCase()).join(' · ') + '</div>' + balLine(o) + '<div class="small muted" style="margin-top:4px">' + o.vials + ' vial' + (o.vials === 1 ? '' : 's') + ' · ' + (o.address ? esc(o.address) : '') + '</div></button>' +
       '<div class="qrow">' + sel(PAYS, o.pay, 'data-yp="' + esc(o.ref) + '" aria-label="Payment status"') + sel(STATS, o.status, 'data-ys="' + esc(o.ref) + '" aria-label="Order status"') + '</div></div>').join('')
@@ -2336,17 +2372,17 @@ function openYixProducts() {
   const draw = () => {
     const q = ($('#ypq').value || '').trim().toLowerCase();
     $('#yplist').innerHTML = ps.filter(p => !q || (p.name + ' ' + p.spec + ' ' + p.code).toLowerCase().includes(q)).map(p =>
-      '<div class="card" style="padding:12px 14px;margin:0 0 8px"><div class="row spread"><div><b>' + esc(p.name) + '</b><br><span class="muted small">' + esc(p.spec) + ' · ' + (p.usd == null ? 'no price yet' : fmt(p.kitPrice) + ' / kit · ' + fmt(p.vialPrice) + ' / vial') + '</span></div>' +
+      '<div class="card" style="padding:12px 14px;margin:0 0 8px"><div class="row spread"><div><b>' + esc(p.name) + '</b><br><span class="muted small">' + esc(p.spec) + ' · ' + (p.addon ? 'add-on · ' + fmt(p.vialPrice) + ' each' : p.usd == null ? 'no price yet' : fmt(p.kitPrice) + ' / kit · ' + fmt(p.vialPrice) + ' / vial') + '</span></div>' +
       '<span class="tag ' + (p.status === 'Available' ? (p.active ? 'ok' : 'kit') : p.status === 'Locked' ? 'kit' : 'plain') + '">' + (p.status === 'Available' && !p.active ? 'No price' : p.status) + '</span></div>' +
-      '<div class="two" style="margin-top:8px"><div><label class="f small">Vials per kit</label><input class="in" type="number" min="1" max="500" data-yk="' + esc(p.code) + '" value="' + p.per + '"></div><div><label class="f small">&nbsp;</label><p class="small muted" style="margin:0;padding-top:10px">Kit = ' + p.per + ' vial' + (p.per === 1 ? '' : 's') + '</p></div></div>' +
-      '<div class="two" style="margin-top:8px"><div><label class="f small">Price (USD)</label><input class="in" type="number" step="0.01" min="0" data-yu="' + esc(p.code) + '" value="' + (p.usd == null ? '' : p.usd) + '"></div>' +
+      (p.addon ? '' : '<div class="two" style="margin-top:8px"><div><label class="f small">Vials per kit</label><input class="in" type="number" min="1" max="500" data-yk="' + esc(p.code) + '" value="' + p.per + '"></div><div><label class="f small">&nbsp;</label><p class="small muted" style="margin:0;padding-top:10px">Kit = ' + p.per + ' vial' + (p.per === 1 ? '' : 's') + '</p></div></div>') +
+      '<div class="two" style="margin-top:8px"><div>' + (p.addon ? '<label class="f small">Price in ₱ (each)</label><input class="in" type="number" step="0.01" min="0" data-yfx="' + esc(p.code) + '" value="' + p.vialPrice + '">' : '<label class="f small">Price (USD)</label><input class="in" type="number" step="0.01" min="0" data-yu="' + esc(p.code) + '" value="' + (p.usd == null ? '' : p.usd) + '">') + '</div>' +
       '<div><label class="f small">Status</label>' + sel(['Available', 'Locked', 'Hidden'], p.status, 'data-yst="' + esc(p.code) + '"') + '</div></div>' +
       '<label class="f small" style="margin-top:6px">Note shown to buyers</label><input class="in" data-yn="' + esc(p.code) + '" placeholder="e.g. Arriving this weekend" value="' + esc(p.note && p.note !== 'Not available right now' && p.note !== 'Price coming soon' ? p.note : '') + '">' +
       '<button class="btn sm soft" data-ys2="' + esc(p.code) + '" style="margin-top:8px">Save</button></div>').join('') || '<p class="muted">No match.</p>';
     document.querySelectorAll('[data-ys2]').forEach(b => b.onclick = async () => {
       const code = b.dataset.ys2, g = a => document.querySelector('[' + a + '="' + code + '"]');
       b.disabled = true; b.textContent = 'Saving…';
-      try { await adminCall('adminYixProduct', code, g('data-yu').value, g('data-yst').value, g('data-yn').value, g('data-yk').value); await refreshPublic(); const keep = $('#ypq').value; toast('Saved'); adminView(); openYixProducts(); $('#ypq').value = keep; if (keep) $('#ypq').dispatchEvent(new Event('input')); }
+      try { await adminCall('adminYixProduct', code, g('data-yu') ? g('data-yu').value : undefined, g('data-yst').value, g('data-yn').value, g('data-yk') ? g('data-yk').value : undefined, g('data-yfx') ? g('data-yfx').value : undefined); await refreshPublic(); const keep = $('#ypq').value; toast('Saved'); adminView(); openYixProducts(); $('#ypq').value = keep; if (keep) $('#ypq').dispatchEvent(new Event('input')); }
       catch (e) { b.disabled = false; b.textContent = 'Save'; }
     });
   };
