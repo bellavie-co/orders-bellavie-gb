@@ -557,7 +557,7 @@ function call(fn) {
   return fetch(API_URL, {method: 'POST', headers: {'Content-Type': 'text/plain;charset=utf-8'}, body: JSON.stringify({fn: fn, args: args})})
     .then(r => r.json())
     .then(r => { if (r && r.ok) return r.data; throw new Error((r && r.error) || 'Something went wrong. Please try again.'); })
-    .catch(e => { throw new Error(/fetch|network|json/i.test(e.message) ? 'Connection problem. Please check your internet and try again.' : e.message); });
+    .catch(e => { throw new Error(/fetch|network|json/i.test(e.message) ? 'We could not reach the server, so your order was NOT saved yet. Please check your internet and tap the button again (if it keeps happening, try a smaller screenshot).' : e.message); });
 }
 const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
@@ -1028,7 +1028,7 @@ function bindFuanPay() {
   const show = () => { const pv = $('#ppv'); pv.src = F.img.src; pv.style.display = 'block'; $('#pft').textContent = 'Change screenshot'; };
   $('#pf').onchange = async ev => {
     const f = ev.target.files && ev.target.files[0]; if (!f) return;
-    try { F.img = await loadImage(f); show(); const eb = $('#err'); if (eb) eb.innerHTML = ''; } catch (x) { F.img = null; toast(x.message); }
+    try { F.img = await loadImage(f); show(); const eb = $('#err'); if (eb) eb.innerHTML = ''; } catch (x) { F.img = null; ev.target.value = ''; const eb = $('#err'); if (eb) eb.innerHTML = '<div class="alert err" role="alert">' + esc(x.message) + '</div>'; }
   };
   if (F.img) show();
 }
@@ -1222,12 +1222,12 @@ function openPay(o) {
 const phDate = ms => new Date(ms).toLocaleString('en-PH', {timeZone: 'Asia/Manila', day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true});
 function proofLabel(P) { return P.kind === 'ORDER' ? (P.ref.trim().toUpperCase() || 'ORDER') : ((P.ref.trim() ? P.ref.trim().toUpperCase() + ' · ' : '') + P.purpose.toUpperCase()); }
 function loadImage(file) {
-  return new Promise((res, rej) => {
-    const url = URL.createObjectURL(file), im = new Image();
-    im.onload = () => { res(im); };
-    im.onerror = () => rej(new Error('That file could not be opened. Please choose a photo or screenshot.'));
-    im.src = url;
-  });
+  const open = src => new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => rej(new Error('x')); im.src = src; });
+  const bad = () => new Error('That file could not be opened. Please choose a screenshot saved as JPG or PNG (not HEIC or a PDF).');
+  return open(URL.createObjectURL(file)).catch(() => new Promise((res, rej) => {
+    const fr = new FileReader(); fr.onerror = () => rej(bad());
+    fr.onload = () => open(fr.result).then(res, () => rej(bad())); fr.readAsDataURL(file);
+  }));
 }
 function drawProof(P, ms) {
   const im = P.img, MAXW = 1400;
@@ -2029,7 +2029,7 @@ function yixDetailsView() {
     $('#pf').onchange = async ev => {
       const f = ev.target.files && ev.target.files[0]; if (!f) return;
       try { Y.proofImg = await loadImage(f); const pv = $('#ppv'); pv.src = Y.proofImg.src; pv.style.display = 'block'; $('#pft').textContent = 'Change screenshot'; $('#pfl').classList.remove('bad'); const m = $('#fe_pfl'); if (m) m.remove(); const eb = $('#err'); if (eb) eb.innerHTML = ''; }
-      catch (x) { Y.proofImg = null; toast(x.message); }
+      catch (x) { Y.proofImg = null; ev.target.value = ''; const eb = $('#err'); if (eb) eb.innerHTML = '<div class="alert err" role="alert">' + esc(x.message) + '</div>'; else toast(x.message); }
     };
     if (Y.proofImg) { const pv = $('#ppv'); pv.src = Y.proofImg.src; pv.style.display = 'block'; $('#pft').textContent = 'Change screenshot'; }
   }
