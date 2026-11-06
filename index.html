@@ -356,6 +356,7 @@ label.f{font-weight:700;font-size:14.5px;color:var(--ink2);margin-bottom:7px}
 .sech{display:flex;align-items:baseline;justify-content:space-between;margin:30px 2px 12px}
 .sech h2{font-family:var(--serif);font-weight:600;font-size:23px;letter-spacing:-.01em}
 .sech span{font-size:13px;color:var(--mauve);font-weight:600}
+[hidden]{display:none!important}
 .gbs{display:grid;gap:12px}
 .ykits{padding:6px 14px}.ykit{display:flex;gap:10px;align-items:center;justify-content:space-between;width:100%;background:none;border:0;border-bottom:1px solid var(--blush2);padding:11px 0;text-align:left;font:inherit;color:inherit;cursor:pointer;flex-wrap:wrap}.ykit:last-child{border-bottom:0}
 .gb{display:flex;gap:14px;align-items:center;width:100%;text-align:left;background:#fff;border:1px solid var(--line);border-radius:18px;padding:16px;cursor:pointer;box-shadow:var(--shadow);color:var(--cocoa);transition:transform .15s,border-color .15s,box-shadow .15s}
@@ -740,7 +741,7 @@ function welcomeHtml() {
         .filter(x => F[x[0]] && F[x[0]].open).map(x => gb(x[0], x[1], x[2], x[3])).join('') +
         (!Object.keys(F).some(k => F[k].open) ? '<div class="card center"><p class="muted">No group buy is open right now. Please check back soon.</p></div>' : '') +
     '</div>' +
-    (S.cfg.forms.YIXING && S.cfg.forms.YIXING.open && (S.yixKits || []).length ? '<div class="sech"><h2>Yixing kits still open</h2><span>Join one to complete it</span></div><div class="card ykits">' + S.yixKits.map(k => '<button class="ykit" data-go="YIXING"><span class="grow"><b>' + esc(k.name) + '</b> <span class="muted small">' + esc(k.spec) + '</span></span><span class="tag kit">' + k.have + ' of ' + k.per + ' vials · ' + k.need + ' more to complete</span></button>').join('') + '</div>' : '') +
+    (S.cfg.forms.YIXING && S.cfg.forms.YIXING.open && (S.yixKits || []).length ? '<div class="sech"><h2>Yixing kits still open</h2><span>Join one to complete it</span></div><div class="card ykits">' + S.yixKits.map(k => '<button class="ykit" data-ykit="' + esc(k.code) + '"><span class="grow"><b>' + esc(k.name) + '</b> <span class="muted small">' + esc(k.spec) + '</span></span><span class="tag kit">' + k.have + ' of ' + k.per + ' vials · ' + k.need + ' more to complete</span></button>').join('') + '</div>' : '') +
     '<div class="sech"><h2>How it works</h2></div><div class="steps3"><div><b>1</b><strong>Choose &amp; order</strong><span>Pick your items and fill in your details.</span></div><div><b>2</b><strong>Send payment</strong><span>Pay and upload your screenshot.</span></div><div><b>3</b><strong>We ship it</strong><span>Get your tracking number here.</span></div></div>' +
     '<div class="sech"><h2>Already ordered?</h2></div><div class="tools"><button class="btn ghost" id="findBtn">' + ICON.search + ' Find or edit order</button><button class="btn ghost" id="payBtn">' + ICON.card + ' Upload payment</button></div>' +
     (S.cfg.customerViewLink ? '<div class="stack" style="margin-top:10px"><a class="btn ghost" href="' + esc(S.cfg.customerViewLink) + '" target="_blank" rel="noopener">' + ICON.box + ' See the live order board</a></div>' : '') +
@@ -1902,7 +1903,7 @@ function yixCalc() {
   return {items, sub, vials, shorts, onlyAddons, packaging, label, ship, reg, mmOk, total: Math.round((sub + packaging + label + ship) * 100) / 100};
 }
 async function yixStart() {
-  S.yix.cart = {}; S.yix.q = ''; S.yix.editing = null; S.yix.draft = yixBlank(); S.yix.saved = ''; S.yix.mm = null;
+  S.yix.cart = {}; S.yix.q = ''; S.yix.focus = S.yixFocus || null; S.yix.only1 = ''; S.yixFocus = null; S.yix.editing = null; S.yix.draft = yixBlank(); S.yix.saved = ''; S.yix.mm = null;
   $('#app').innerHTML = '<div class="loading"><div class="spin"></div></div>';
   try { const b = await call('yixBootstrap'); S.yix.products = b.products; S.cfg = b.settings; } catch (e) { toast(e.message); go('welcome'); return; }
   go('yixshop');
@@ -1915,10 +1916,17 @@ function yixShopView() {
     (!f.open && !e ? '<div class="alert err">This group buy is closed for new orders right now.</div>' : '') +
     '<div class="rules"><div><b>Pay as you order</b><span>Your order is placed together with your payment screenshot.</span></div><div><b>Min. ' + f.minVials + ' vial' + (f.minVials === 1 ? '' : 's') + ' each</b><span>' + (f.bunuan ? 'Bunuan mode is on, so a single vial is welcome.' : 'For every item you order. A kit counts as all the vials in it.') + '</span></div><div><b>Ship together</b><span>Already placed another order? Combine shipping on the next step. Each order keeps its own packaging fee.</span></div></div>' + (S.yix.products.some(p => p.addon) ? '<div class="alert ok" style="margin-top:10px">Add-ons like <b>' + esc(S.yix.products.find(p => p.addon).name) + '</b> have no minimum, and no packaging fee when they are your only item.</div>' : '') +
     (f.note ? '<div class="alert warn">' + esc(f.note) + '</div>' : '') +
-    '<div class="search"><span>' + ICON.search + '</span><input class="in" id="q" type="search" placeholder="Search an item, e.g. retatrutide" aria-label="Search items" value="' + esc(Y.q) + '"></div>' +
-    '<div class="cats" id="ycats" role="group" aria-label="Categories"></div>' +
+    (Y.focus && !e ? '<div class="card kitpick"><h2 class="h-md" style="margin-bottom:4px">' + esc(Y.focus.name) + '</h2><p class="muted small" style="margin:0 0 10px">' + esc(Y.focus.spec) + '</p><p style="margin:0 0 12px">This kit has <b>' + Y.focus.have + ' of ' + Y.focus.per + '</b> vials. Add <b>' + Y.focus.need + ' vial' + (Y.focus.need === 1 ? '' : 's') + '</b> to complete it, or pick your own amount.</p><div class="stack"><button class="btn" id="kpFill">Complete the kit (+' + Y.focus.need + ' vial' + (Y.focus.need === 1 ? '' : 's') + ')</button><button class="btn ghost" id="kpOwn">I will choose my own amount</button></div></div>' : '') +
+    (Y.only1 && !e ? '<div class="alert warn" style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap"><span>Showing only <b>' + esc(Y.only1) + '</b>. Use + to add as many as you like.</span><button class="btn sm ghost" id="seeAll" type="button">See all items</button></div>' : '') +
+    '<div class="search"' + (Y.only1 && !e ? ' hidden' : '') + '><span>' + ICON.search + '</span><input class="in" id="q" type="search" placeholder="Search an item, e.g. retatrutide" aria-label="Search items" value="' + esc(Y.q) + '"></div>' +
+    '<div class="cats" id="ycats" role="group" aria-label="Categories"' + (Y.only1 && !e ? ' hidden' : '') + '></div>' +
     '<div id="list"></div><div id="cartbar"></div>';
   $('#back').onclick = () => go(e ? 'yixdone' : 'welcome');
+  if ($('#kpFill')) {
+    const done = fill => { const fo = Y.focus; Y.focus = null; if (fill) { const pr = Y.products.find(x => x.code === fo.code); if (pr && !pr.locked) Y.cart[YKEY(fo.code, 'Vial')] = (Y.cart[YKEY(fo.code, 'Vial')] || 0) + fo.need; } Y.q = ''; Y.only1 = fo.name; yixShopView(); if (fill) toast('Added ' + fo.need + ' to complete the kit'); const first = document.querySelector('.pcard'); if (first) first.scrollIntoView({block: 'start'}); };
+    $('#kpFill').onclick = () => done(true); $('#kpOwn').onclick = () => done(false);
+  }
+  if ($('#seeAll')) $('#seeAll').onclick = () => { Y.only1 = ''; yixShopView(); };
   $('#q').oninput = ev => { Y.q = ev.target.value; yixList(); };
   $('#list').onclick = yixListClick; $('#list').onchange = yixListChange;
   yixCats(); yixList(); yixCartBar();
@@ -1945,7 +1953,7 @@ function yixVariant(p) {
 }
 function yixList() {
   const Y = S.yix, q = Y.q.trim().toLowerCase();
-  const list = Y.products.filter(p => (!q || (p.name + ' ' + p.spec + ' ' + p.code + ' ' + (p.category || '')).toLowerCase().includes(q)) && (!Y.only || !p.locked) && (!Y.cat || (p.category || 'Other') === Y.cat));
+  const list = Y.products.filter(p => (!Y.only1 || p.name === Y.only1) && (!q || (p.name + ' ' + p.spec + ' ' + p.code + ' ' + (p.category || '')).toLowerCase().includes(q)) && (!Y.only || !p.locked) && (!Y.cat || (p.category || 'Other') === Y.cat));
   const card = g => '<article class="pcard"><h3 class="pname">' + esc(g.name) + '</h3>' + g.v.map(yixVariant).join('') + '</article>';
   const html = [];
   yixCatList().forEach(cat => {
@@ -2394,6 +2402,7 @@ function openYixProducts() {
 
 /* =================================================================== BOOT */
 document.addEventListener('click', ev => {
+  const yk = ev.target.closest('[data-ykit]'); if (yk) { const k = (S.yixKits || []).find(x => x.code === yk.dataset.ykit); S.yixFocus = k || null; startForm('YIXING'); return; }
   const g = ev.target.closest('[data-go]'); if (g) { startForm(g.dataset.go); return; }
   if (ev.target.closest('#payBtn')) { openPay(null); return; }
   if (ev.target.closest('#findBtn')) { S.find.error = ''; go('find'); return; }
