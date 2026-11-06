@@ -357,6 +357,7 @@ label.f{font-weight:700;font-size:14.5px;color:var(--ink2);margin-bottom:7px}
 .sech h2{font-family:var(--serif);font-weight:600;font-size:23px;letter-spacing:-.01em}
 .sech span{font-size:13px;color:var(--mauve);font-weight:600}
 .gbs{display:grid;gap:12px}
+.ykits{padding:6px 14px}.ykit{display:flex;gap:10px;align-items:center;justify-content:space-between;width:100%;background:none;border:0;border-bottom:1px solid var(--blush2);padding:11px 0;text-align:left;font:inherit;color:inherit;cursor:pointer;flex-wrap:wrap}.ykit:last-child{border-bottom:0}
 .gb{display:flex;gap:14px;align-items:center;width:100%;text-align:left;background:#fff;border:1px solid var(--line);border-radius:18px;padding:16px;cursor:pointer;box-shadow:var(--shadow);color:var(--cocoa);transition:transform .15s,border-color .15s,box-shadow .15s}
 .gb:hover{transform:translateY(-2px);border-color:var(--berry);box-shadow:0 14px 30px -14px rgba(157,42,88,.4)}
 .gb .ico{flex:none;width:52px;height:52px;border-radius:14px;background:var(--blush);color:var(--berry);display:grid;place-items:center}
@@ -739,6 +740,7 @@ function welcomeHtml() {
         .filter(x => F[x[0]] && F[x[0]].open).map(x => gb(x[0], x[1], x[2], x[3])).join('') +
         (!Object.keys(F).some(k => F[k].open) ? '<div class="card center"><p class="muted">No group buy is open right now. Please check back soon.</p></div>' : '') +
     '</div>' +
+    (S.cfg.forms.YIXING && S.cfg.forms.YIXING.open && (S.yixKits || []).length ? '<div class="sech"><h2>Yixing kits still open</h2><span>Join one to complete it</span></div><div class="card ykits">' + S.yixKits.map(k => '<button class="ykit" data-go="YIXING"><span class="grow"><b>' + esc(k.name) + '</b> <span class="muted small">' + esc(k.spec) + '</span></span><span class="tag kit">' + k.have + ' of ' + k.per + ' vials · ' + k.need + ' more to complete</span></button>').join('') + '</div>' : '') +
     '<div class="sech"><h2>How it works</h2></div><div class="steps3"><div><b>1</b><strong>Choose &amp; order</strong><span>Pick your items and fill in your details.</span></div><div><b>2</b><strong>Send payment</strong><span>Pay and upload your screenshot.</span></div><div><b>3</b><strong>We ship it</strong><span>Get your tracking number here.</span></div></div>' +
     '<div class="sech"><h2>Already ordered?</h2></div><div class="tools"><button class="btn ghost" id="findBtn">' + ICON.search + ' Find or edit order</button><button class="btn ghost" id="payBtn">' + ICON.card + ' Upload payment</button></div>' +
     (S.cfg.customerViewLink ? '<div class="stack" style="margin-top:10px"><a class="btn ghost" href="' + esc(S.cfg.customerViewLink) + '" target="_blank" rel="noopener">' + ICON.box + ' See the live order board</a></div>' : '') +
@@ -1857,7 +1859,7 @@ function adminSettings() {
   };
 }
 async function refreshPublic() {
-  try { const b = await call('bootstrap'); S.cfg = b.settings; S.products = b.products; S.categories = b.categories || []; S.kits = b.kits; } catch (e) {}
+  try { const b = await call('bootstrap'); S.cfg = b.settings; S.products = b.products; S.categories = b.categories || []; S.kits = b.kits; S.yixKits = b.yixKits || []; } catch (e) {}
 }
 
 /* =================================================================== YIXING (customer) */
@@ -2275,6 +2277,7 @@ function adminYixing() {
   $('#tab').innerHTML =
     '<div class="stats"><div class="stat"><b>' + live.length + '</b><span>orders</span></div><div class="stat"><b>' + toShip + '</b><span>to ship</span></div><div class="stat"><b>' + live.filter(o => o.payNow).length + '</b><span>awaiting payment</span></div></div>' +
     '<div class="sumline"><span>Total <b>' + fmt(total) + '</b></span><span>Paid <b>' + fmt(paid) + '</b></span><span>Balance <b>' + fmt(total - paid) + '</b></span></div>' +
+    (() => { const by = {}; live.forEach(o => o.items.forEach(i => { if (i.addon) return; const per = Math.max(1, i.per || 10), e = by[i.code] || (by[i.code] = {n: i.name, sp: i.spec, per, v: 0, who: []}); const v = i.qty * (i.unit === 'Kit' ? per : 1); e.v += v; e.who.push(o.name + ' ' + v); })); const rows = Object.values(by).filter(e => e.v % e.per); return rows.length ? '<div class="card" style="margin-bottom:10px"><h2 class="h-md" style="font-size:17px;margin-bottom:6px">Incomplete kits (' + rows.length + ')</h2>' + rows.map(e => '<div class="iline"><span><b>' + esc(e.n) + '</b> <span class="muted small">' + esc(e.sp) + '</span><br><span class="muted small">' + esc(e.who.join(', ')) + '</span></span><span class="tag kit">' + (e.v % e.per) + '/' + e.per + ' · ' + (e.per - e.v % e.per) + ' more</span></div>').join('') + '</div>' : ''; })() +
     '<div class="row" style="gap:8px;margin-bottom:10px"><button class="btn sm soft grow" id="yprods">Items &amp; prices</button><a class="btn sm ghost grow" style="text-decoration:none;text-align:center" href="#" id="ycopy">Copy to-ship list</a></div>' +
     '<div class="search" style="margin:0 0 10px"><span>' + ICON.search + '</span><input class="in" id="yq" type="search" placeholder="Search name, number or reference" value="' + esc(Y.q) + '"></div>' +
     '<div class="chips" id="ychips">' + chips.map(c => '<button class="chip" data-f="' + c[0] + '" aria-pressed="' + (Y.f === c[0]) + '">' + c[1] + '</button>').join('') + '</div><div id="ylist"></div>';
@@ -2400,7 +2403,7 @@ document.addEventListener('click', ev => {
 async function boot() {
   try {
     const b = await call('bootstrap');
-    S.cfg = b.settings; S.products = b.products; S.categories = b.categories || []; S.kits = b.kits; S.view = 'welcome'; render();
+    S.cfg = b.settings; S.products = b.products; S.categories = b.categories || []; S.kits = b.kits; S.yixKits = b.yixKits || []; S.view = 'welcome'; render();
     let pre = window.__REF || ''; try { pre = pre || (new URLSearchParams(location.search).get('ref') || ''); } catch (e2) {}
     pre = String(pre).toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 30);
     if (pre) { S.find.ref = pre; S.find.error = ''; go('find'); }
