@@ -356,6 +356,21 @@ label.f{font-weight:700;font-size:14.5px;color:var(--ink2);margin-bottom:7px}
 .sech{display:flex;align-items:baseline;justify-content:space-between;margin:30px 2px 12px}
 .sech h2{font-family:var(--serif);font-weight:600;font-size:23px;letter-spacing:-.01em}
 .sech span{font-size:13px;color:var(--mauve);font-weight:600}
+
+/* floating look */
+.flo{box-shadow:0 22px 44px -22px rgba(177,58,100,.5),0 6px 16px rgba(74,40,51,.07)!important;transition:transform .25s ease,box-shadow .25s ease}
+.flo:hover{transform:translateY(-3px);box-shadow:0 28px 50px -22px rgba(177,58,100,.55),0 8px 18px rgba(74,40,51,.09)!important}
+.gb{box-shadow:0 14px 30px -18px rgba(177,58,100,.45),0 3px 10px rgba(74,40,51,.06);transition:transform .22s ease,box-shadow .22s ease}
+.gb:hover{transform:translateY(-3px);box-shadow:0 20px 36px -18px rgba(177,58,100,.5),0 6px 14px rgba(74,40,51,.08)}
+.heroX .herologo{animation:floaty 7s ease-in-out infinite}
+@keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+.labcard{margin-top:-14px;position:relative;z-index:2}
+.fres{display:grid;gap:12px;margin-top:14px}
+.fres .fo{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px;box-shadow:0 12px 26px -18px rgba(177,58,100,.5)}
+.fo .frow{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.floatbar{position:sticky;bottom:12px;z-index:5;background:rgba(255,255,255,.94);backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:18px;padding:10px;box-shadow:0 18px 36px -16px rgba(74,40,51,.45);margin-top:14px}
+.ykits,.card.kitpick{box-shadow:0 16px 34px -20px rgba(177,58,100,.45)}
+@media (prefers-reduced-motion:reduce){.heroX .herologo{animation:none}.flo,.gb{transition:none}}
 [hidden]{display:none!important}
 .gbs{display:grid;gap:12px}
 .ykits{padding:6px 14px}.ykit{display:flex;gap:10px;align-items:center;justify-content:space-between;width:100%;background:none;border:0;border-bottom:1px solid var(--blush2);padding:11px 0;text-align:left;font:inherit;color:inherit;cursor:pointer;flex-wrap:wrap}.ykit:last-child{border-bottom:0}
@@ -708,7 +723,7 @@ function render() {
   const app = $('#app');
   if (!S.cfg && S.view !== 'boot') return;
   const v = S.view; siteHead();
-  if (v === 'welcome') app.innerHTML = welcomeHtml();
+  if (v === 'welcome') { app.innerHTML = welcomeHtml(); bindLabWelcome(); }
   else if (v === 'shop') shopView();
   else if (v === 'details') detailsView();
   else if (v === 'fuan') fuanView();
@@ -716,6 +731,7 @@ function render() {
   else if (v === 'yixshop') yixShopView();
   else if (v === 'yixdetails') yixDetailsView();
   else if (v === 'yixdone') yixDoneView();
+  else if (v === 'labels') labView();
   else if (v === 'find') findView();
   else if (v === 'pay') payView();
   else if (v === 'adminLogin') adminLoginView();
@@ -728,26 +744,171 @@ function welcomeHtml() {
   const recent = store.get('blvc_recent', []);
   const pill = f => f.open ? '<span class="pill open">Open</span>' : '<span class="pill closed">Closed</span>';
   const gb = (k, ico, desc, extra) => '<button class="gb" data-go="' + k + '"><span class="ico">' + ico + '</span><span class="grow"><span class="tt">' + esc(F[k].title) + ' ' + pill(F[k]) + (extra || '') + '</span><span class="ds" style="display:block">' + desc + '</span></span><span class="go">' + ICON.go + '</span></button>';
-  return '<div class="land"><section class="heroX"><img class="herologo" src="' + LOGO + '" alt="' + esc(S.cfg.businessName) + '">' + (S.cfg.welcomeTag ? '<div class="eyebrow">' + esc(S.cfg.welcomeTag) + '</div>' : '') +
+  return '<div class="land"><section class="heroX flo"><img class="herologo" src="' + LOGO + '" alt="' + esc(S.cfg.businessName) + '">' + (S.cfg.welcomeTag ? '<div class="eyebrow">' + esc(S.cfg.welcomeTag) + '</div>' : '') +
     (S.cfg.welcomeTitle ? '<h1 class="h-xl">' + esc(S.cfg.welcomeTitle) + '</h1>' : '') +
     (S.cfg.welcomeText ? '<p class="lead">' + esc(S.cfg.welcomeText) + '</p>' : '') +
     (S.cfg.welcomePoints ? '<div class="trust">' + S.cfg.welcomePoints.split(',').map(x => x.trim()).filter(Boolean).map(x => '<span>' + ICON.check + ' ' + esc(x) + '</span>').join('') + '</div>' : '') +
     (S.cfg.announcement ? '<div class="banner">' + esc(S.cfg.announcement) + '</div>' : '') + '</section>' +
-    '<div class="sech"><h2>Open group buys</h2><span>Tap one to start</span></div><div class="gbs">' +
+    (S.cfg.labels && S.cfg.labels.open ? '<section class="card flo labcard"><div class="eyebrow">Mammoth orders</div><h2 class="h-md" style="margin:2px 0 6px">Vial labels &amp; shipping details</h2><p class="muted" style="margin:0 0 14px">Ordered from Mammoth? Choose below. With or without labels, <b>everyone needs to complete their delivery address</b> so we can ship.</p>' +
+      '<div class="seg two" id="labPick" style="margin-bottom:14px"><button class="opt big" type="button" data-p="1" aria-pressed="' + ((S.lab && S.lab.pick) === true) + '">Yes, add vial labels' + (S.cfg.labels.fee > 0 ? '<small>' + fmt(S.cfg.labels.fee) + ' per vial</small>' : '<small>Free</small>') + '</button><button class="opt big" type="button" data-p="0" aria-pressed="' + ((S.lab && S.lab.pick) === false) + '">No labels<small>Address only</small></button></div>' +
+      '<div class="field" style="margin:0 0 10px"><label class="f" for="labPh">WhatsApp number used on your order</label><input class="in" id="labPh" type="tel" inputmode="tel" placeholder="0917 123 4567" value="' + esc((S.lab && S.lab.phone) || store.get('blvc_phone', '')) + '"></div>' +
+      '<button class="btn" id="labFind">Find my orders</button><div id="labRes"></div></section>' : '') +
+    (Object.keys(S.cfg.forms).some(k => S.cfg.forms[k].open) ? '<div class="sech"><h2>Open group buys</h2><span>Tap one to start</span></div>' : '') + '<div class="gbs">' +
       [['YIXING', ICON.heart, 'In stock in the Philippines · pay when you order · J&amp;T or Lalamove', ' <span class="pill new">New</span>'],
        ['MAMMOTH', ICON.box, 'Pick peptides by the vial · 10 vials make a kit'],
        ['FUAN', ICON.drop, 'Half kit (5 vials) or a full kit (10 vials)'],
        ['FUAN3', ICON.drop, 'Half kit (5 vials) or a full kit (10 vials)', ' <span class="pill new">New</span>']]
         .filter(x => F[x[0]] && F[x[0]].open).map(x => gb(x[0], x[1], x[2], x[3])).join('') +
-        (!Object.keys(F).some(k => F[k].open) ? '<div class="card center"><p class="muted">No group buy is open right now. Please check back soon.</p></div>' : '') +
+        (!Object.keys(F).some(k => F[k].open) && !(S.cfg.labels && S.cfg.labels.open) ? '<div class="card center"><p class="muted">No group buy is open right now. Please check back soon.</p></div>' : '') +
     '</div>' +
-    (S.cfg.forms.YIXING && S.cfg.forms.YIXING.open && (S.yixKits || []).length ? '<div class="sech"><h2>Yixing kits still open</h2><span>Join one to complete it</span></div><div class="card ykits">' + S.yixKits.map(k => '<button class="ykit" data-ykit="' + esc(k.code) + '"><span class="grow"><b>' + esc(k.name) + '</b> <span class="muted small">' + esc(k.spec) + '</span></span><span class="tag kit">' + k.have + ' of ' + k.per + ' vials · ' + k.need + ' more to complete</span></button>').join('') + '</div>' : '') +
+    (S.cfg.forms.YIXING && S.cfg.forms.YIXING.open && (S.yixKits || []).length ? '<div class="sech"><h2>Yixing kits still open</h2><span>Join one to complete it</span></div><div class="card ykits flo">' + S.yixKits.map(k => '<button class="ykit" data-ykit="' + esc(k.code) + '"><span class="grow"><b>' + esc(k.name) + '</b> <span class="muted small">' + esc(k.spec) + '</span></span><span class="tag kit">' + k.have + ' of ' + k.per + ' vials · ' + k.need + ' more to complete</span></button>').join('') + '</div>' : '') +
     '<div class="sech"><h2>How it works</h2></div><div class="steps3"><div><b>1</b><strong>Choose &amp; order</strong><span>Pick your items and fill in your details.</span></div><div><b>2</b><strong>Send payment</strong><span>Pay and upload your screenshot.</span></div><div><b>3</b><strong>We ship it</strong><span>Get your tracking number here.</span></div></div>' +
     '<div class="sech"><h2>Already ordered?</h2></div><div class="tools"><button class="btn ghost" id="findBtn">' + ICON.search + ' Find or edit order</button><button class="btn ghost" id="payBtn">' + ICON.card + ' Upload payment</button></div>' +
     (S.cfg.customerViewLink ? '<div class="stack" style="margin-top:10px"><a class="btn ghost" href="' + esc(S.cfg.customerViewLink) + '" target="_blank" rel="noopener">' + ICON.box + ' See the live order board</a></div>' : '') +
     (recent.length ? '<p class="small muted" style="margin-top:14px">Your last order: <button class="linkbtn" id="lastBtn">' + esc(recent[0].ref) + '</button></p>' : '') +
     '<div class="talk"><a class="btn soft" href="' + esc(S.cfg.communityLink) + '" target="_blank" rel="noopener">' + ICON.wa + ' Join our WhatsApp community</a></div></div>' +
   '<footer class="foot"><p>Questions? Chat with us directly.</p><div class="waline"><a class="btn ghost" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center" target="_blank" rel="noopener" href="' + 'https://api.whatsapp.com/send?phone=' + esc(S.cfg.adminWhatsapp) + '&text=' + encodeURIComponent('Hi ' + S.cfg.businessName + '! I have a question.') + '">Message ' + esc(localNum(S.cfg.adminWhatsapp)) + '</a></div><button class="linkbtn" id="adminLink" style="font-size:13px;opacity:.7">Admin</button></footer>';
+}
+
+
+/* ---------- Mammoth labels & shipping details */
+S.lab = S.lab || {pick: null, phone: '', orders: null, fee: 0, sel: null, d: null, done: null};
+const payCls2 = p => /^Paid$|^Free$/.test(p) ? 'ok' : /unverified|Partially/.test(p) ? 'kit' : /No labels/.test(p) ? 'plain' : 'bad';
+async function openOrderByRef(ref, phone) {
+  if (/^YIX-/i.test(ref)) { const y = await call('yixLookup', ref, phone); S.yix.order = S.order = y.order; S.yix.products = y.products; S.yix.saved = ''; go('yixdone'); return; }
+  const r = await call('lookupOrder', ref, phone); S.kits = r.kits; S.order = r.order; S.justSaved = ''; go('done');
+}
+function labResHtml(L) {
+  if (!L.orders) return '';
+  if (!L.orders.length) return '<div class="alert warn" style="margin-top:14px">We could not find any order with that WhatsApp number. Please check the number you used when ordering.</div>';
+  return '<div class="fres">' + L.orders.map((o, i) => {
+    const l = o.label, lt = !o.canLabel ? '' : l ? '<span class="tag ' + payCls2(l.pay) + '">' + (l.labels ? 'Labels: yes' : 'Labels: no') + ' · ' + esc(l.pay) + '</span><span class="tag ok">address saved</span>' : '<span class="tag kit">details needed</span>';
+    return '<div class="fo"><div class="row spread"><span class="ref">' + esc(o.ref) + '</span><b class="num">' + fmt(o.total) + '</b></div><div>' + esc(o.name) + ' <span class="muted small">· ' + esc(o.formTitle) + '</span></div>' +
+      '<div style="margin-top:6px"><span class="tag plain" style="margin-left:0">' + esc(o.status) + '</span><span class="tag ' + payCls(o.pay) + '">' + esc(o.pay) + '</span>' + lt + '</div>' +
+      '<div class="frow">' + (o.canLabel ? '<button class="btn sm grow" data-lab="' + i + '">' + (l ? 'Edit labels &amp; address' : 'Labels &amp; address') + '</button>' : '') + '<button class="btn sm ghost grow" data-view="' + i + '">View order</button></div></div>';
+  }).join('') + '</div>';
+}
+function bindLabWelcome() {
+  const L = S.lab, el = $('#labRes'); if (!el) return;
+  const draw = () => {
+    el.innerHTML = labResHtml(L);
+    el.querySelectorAll('[data-lab]').forEach(b => b.onclick = () => { L.sel = L.orders[+b.dataset.lab]; L.d = null; L.done = null; go('labels'); });
+    el.querySelectorAll('[data-view]').forEach(b => b.onclick = async () => { const o = L.orders[+b.dataset.view]; b.disabled = true; try { await openOrderByRef(o.ref, L.phone); } catch (e) { b.disabled = false; toast(e.message); } });
+  };
+  const run = async () => {
+    const ph = $('#labPh').value.trim(), btn = $('#labFind'); L.phone = ph;
+    if (L.pick === null) { el.innerHTML = '<div class="alert err" style="margin-top:14px">Choose first: Yes, add vial labels, or No labels.</div>'; return; }
+    if (ph.replace(/\D/g, '').length < 10) { el.innerHTML = '<div class="alert err" style="margin-top:14px">Enter the WhatsApp number you used, e.g. 0917 123 4567.</div>'; return; }
+    btn.disabled = true; btn.textContent = 'Looking…';
+    try { const r = await call('findOrders', ph); L.orders = r.orders; L.fee = r.fee; store.set('blvc_phone', ph); draw(); }
+    catch (e) { el.innerHTML = '<div class="alert err" style="margin-top:14px">' + esc(e.message) + '</div>'; }
+    btn.disabled = false; btn.textContent = 'Find my orders';
+  };
+  const pk = $('#labPick'); if (pk) pk.onclick = ev => { const b = ev.target.closest('[data-p]'); if (!b) return; L.pick = b.dataset.p === '1'; pk.querySelectorAll('.opt').forEach(x => x.setAttribute('aria-pressed', String(x === b))); };
+  $('#labFind').onclick = run; $('#labPh').onkeydown = e => { if (e.key === 'Enter') run(); };
+  if (L.orders) draw();
+}
+function labView() {
+  const L = S.lab, o = L.sel, fee = (S.cfg.labels && S.cfg.labels.fee) || 0;
+  if (!o) { go('welcome'); return; }
+  const ex = o.label, items = o.items || [];
+  if (!L.d) L.d = {labels: L.pick !== null ? L.pick : (ex ? ex.labels : null), region: (ex && ex.region) || o.region || '', a: addrParse(ex ? ex.address : ''), email: (ex && ex.email) || '', skip: new Set((ex && ex.skip) || [])};
+  const labVials = () => items.reduce((a, i) => a + (d.skip.has(i.code) ? 0 : i.qty), 0), totalNow = () => Math.round(fee * labVials() * 100) / 100;
+  const d = L.d;
+  if (L.done) {
+    const l = L.done;
+    $('#app').innerHTML = '<div class="top"><button class="iconbtn" id="back" aria-label="Back">' + ICON.back + '</button><div class="grow"><div class="ttl">All set</div><div class="sub">' + esc(o.ref) + '</div></div></div>' +
+      '<div class="card center flo"><div class="okmark">' + ICON.check + '</div><h2 class="h-md">Thank you, ' + esc(o.name.split(' ')[0]) + '!</h2><p class="muted">' + (l.labels ? 'Your vial labels &amp; numbers are added' + (l.pay === 'Paid (unverified)' ? ' and your payment is being verified.' : l.pay === 'Free' ? '.' : '.') : 'No labels for this order.') + ' Your delivery address is saved for shipping.</p>' +
+      '<div class="receipt pre" style="text-align:left;margin-top:12px">' + esc(l.address) + '\n' + esc(l.region) + '</div><button class="btn" id="home" style="margin-top:14px">Back to home</button></div>';
+    $('#back').onclick = $('#home').onclick = () => { L.orders = null; go('welcome'); };
+    return;
+  }
+  $('#app').innerHTML =
+    '<div class="top"><button class="iconbtn" id="back" aria-label="Back">' + ICON.back + '</button><div class="grow"><div class="ttl">Labels &amp; shipping details</div><div class="sub">' + esc(o.formTitle) + '</div></div></div>' +
+    '<div class="card flo"><div class="row spread"><span class="ref">' + esc(o.ref) + '</span><b class="num">' + o.vials + ' vial' + (o.vials === 1 ? '' : 's') + '</b></div><div>' + esc(o.name) + ' <span class="muted small">· ' + esc(o.status) + '</span></div></div>' +
+    '<div class="card"><h2 class="sec"><span class="n">1</span>Vial labels &amp; numbers</h2><p class="muted" style="margin:0 0 12px">Sticker labels with the peptide name and a number on each vial. ' + (fee > 0 ? 'It costs <b>' + fmt(fee) + ' per vial</b>, worked out from your order.' : 'It is free.') + '</p>' +
+    '<div class="seg two" id="labYN"><button class="opt big" type="button" data-v="1" aria-pressed="' + (d.labels === true) + '">Yes, add labels' + (fee > 0 ? '<small>' + fmt(fee) + ' per vial</small>' : '') + '</button><button class="opt big" type="button" data-v="0" aria-pressed="' + (d.labels === false) + '">No, thank you</button></div></div>' +
+    '<div class="card" id="labProdsCard" hidden><h2 class="sec"><span class="n">&#10003;</span>Which products get labels?</h2><p class="muted" style="margin:0 0 10px">Untick any product you do <b>not</b> want labels on. The price updates automatically.</p><div id="labProds"></div><div class="line" style="margin-top:10px"><span><b>Labels for <span id="labN"></span> vial(s)</b></span><span class="num" id="labTot"></span></div></div>' +
+    '<div class="card"><h2 class="sec"><span class="n">2</span>Delivery address</h2>' +
+    '<div class="field"><label class="f">Region</label><div class="seg three" id="labReg">' + ['Luzon', 'Visayas', 'Mindanao'].map(r => '<button class="opt" type="button" data-r="' + r + '" aria-pressed="' + (d.region === r) + '">' + r + '</button>').join('') + '</div></div>' +
+    '<div class="addr"><div class="addr-h"><b>Complete address</b><span class="addr-prog" id="labProg"></span></div>' +
+    '<div class="field"><label class="f" for="lad_st">House / unit no. &amp; street</label><input class="in" id="lad_st" autocomplete="address-line1" placeholder="e.g. Unit 5, 12 Rizal St." value="' + esc(d.a.st) + '"></div>' +
+    '<div class="g2"><div class="field"><label class="f" for="lad_br">Barangay</label><input class="in" id="lad_br" placeholder="e.g. Poblacion" value="' + esc(d.a.br) + '"></div><div class="field"><label class="f" for="lad_zp">ZIP code</label><input class="in" id="lad_zp" inputmode="numeric" maxlength="4" placeholder="4 digits" value="' + esc(d.a.zp) + '"></div></div>' +
+    '<div class="g2"><div class="field"><label class="f" for="lad_ci">City / municipality</label><input class="in" id="lad_ci" placeholder="e.g. Cebu City" value="' + esc(d.a.ci) + '"></div><div class="field"><label class="f" for="lad_pr">Province</label><input class="in" id="lad_pr" placeholder="e.g. Cebu" value="' + esc(d.a.pr) + '"></div></div>' +
+    '<div class="field"><label class="f" for="lad_lm">Landmark <span class="muted">(optional)</span></label><input class="in" id="lad_lm" maxlength="80" placeholder="e.g. Beside 7-Eleven, blue gate" value="' + esc(d.a.lm || '') + '"></div></div>' +
+    '<div class="field"><label class="f" for="lad_em">Email <span class="muted">(optional)</span></label><input class="in" id="lad_em" type="email" placeholder="you@email.com" value="' + esc(d.email) + '"></div></div>' +
+    '<div id="labPay"></div><div id="err"></div><div class="floatbar"><button class="btn" id="labSave">Save</button></div>';
+  $('#back').onclick = () => go('welcome');
+  const paidAlready = ex && ex.labels && /^Paid/.test(ex.pay);
+  const drawProds = () => {
+    const card = $('#labProdsCard'); card.hidden = d.labels !== true;
+    $('#labProds').innerHTML = items.map(i => '<label class="switch" style="margin:0 0 8px"><input type="checkbox" data-sk="' + esc(i.code) + '"' + (d.skip.has(i.code) ? '' : ' checked') + '><span class="sw"></span><span><b>' + esc(i.name) + '</b> <span class="muted small">' + esc(i.spec) + ' · ' + i.qty + ' vial' + (i.qty === 1 ? '' : 's') + (fee > 0 ? ' · ' + fmt(fee * i.qty) : '') + '</span></span></label>').join('');
+    $('#labN').textContent = labVials(); $('#labTot').textContent = fee > 0 ? fmt(totalNow()) : 'Free';
+    document.querySelectorAll('[data-sk]').forEach(c => c.onchange = () => { if (c.checked) d.skip.delete(c.dataset.sk); else d.skip.add(c.dataset.sk); $('#labN').textContent = labVials(); $('#labTot').textContent = fee > 0 ? fmt(totalNow()) : 'Free'; refreshPay(); });
+  };
+  const due = () => { const t = totalNow(); return d.labels === true && t > 0 ? Math.max(0, Math.round((t - (paidAlready ? (ex.fee || 0) : 0)) * 100) / 100) : 0; };
+  const refreshPay = () => {
+    const el = $('#labPay'); if (!el) return;
+    if (!due()) { el.innerHTML = ''; $('#labSave').textContent = 'Save my details'; return; }
+    el.innerHTML = fuanPayCard().replace('Pay to place your order', 'Pay for your labels').replace('Your order is only placed with your payment.', 'Labels are added once your payment is sent.');
+    $('#payamt').textContent = fmt(due()); bindFuanPay(); $('#labSave').textContent = 'Pay & save';
+  };
+  $('#labYN').onclick = ev => { const b = ev.target.closest('[data-v]'); if (!b) return; d.labels = b.dataset.v === '1'; document.querySelectorAll('#labYN .opt').forEach(x => x.setAttribute('aria-pressed', String(x === b))); drawProds(); refreshPay(); };
+  $('#labReg').onclick = ev => { const b = ev.target.closest('[data-r]'); if (!b) return; d.region = b.dataset.r; document.querySelectorAll('#labReg .opt').forEach(x => x.setAttribute('aria-pressed', String(x === b))); };
+  const prog = () => { const n = ADDR_KEYS.filter(k => (k === 'zp' ? /^\d{4}$/.test(d.a.zp.trim()) : d.a[k].trim().length >= 2)).length, el = $('#labProg'); if (el) { el.textContent = n + ' of 5 complete'; el.classList.toggle('ok', n === 5); } };
+  ADDR_KEYS.forEach(k => { $('#lad_' + k).oninput = ev => { if (k === 'zp') ev.target.value = ev.target.value.replace(/\D/g, '').slice(0, 4); d.a[k] = ev.target.value; prog(); }; });
+  $('#lad_lm').oninput = ev => { d.a.lm = ev.target.value; }; $('#lad_em').oninput = ev => { d.email = ev.target.value; };
+  prog(); drawProds(); refreshPay();
+  $('#labSave').onclick = async () => {
+    const err = $('#err'), fail = m => { err.innerHTML = '<div class="alert err" role="alert">' + esc(m) + '</div>'; err.scrollIntoView({behavior: 'smooth', block: 'center'}); };
+    err.innerHTML = '';
+    if (d.labels === null) return fail('Choose whether you want vial labels: Yes or No.');
+    if (!d.region) return fail('Pick your region: Luzon, Visayas or Mindanao.');
+    if (d.a.st.trim().length < 3) return fail('Enter your house or unit number and street.');
+    if (d.a.br.trim().length < 2) return fail('Enter your barangay.');
+    if (d.a.ci.trim().length < 2) return fail('Enter your city or municipality.');
+    if (d.a.pr.trim().length < 2) return fail('Enter your province.');
+    if (!/^\d{4}$/.test(d.a.zp.trim())) return fail('Enter the 4-digit ZIP code.');
+    if (d.email.trim() && !/^\S+@\S+\.\S+$/.test(d.email.trim())) return fail('That email does not look right. Fix it or leave it empty.');
+    const need = due(); if (need && !(S.fp && S.fp.img)) { fail('Upload your payment screenshot to add labels.'); const pl = $('#pfl'); if (pl) pl.scrollIntoView({behavior: 'smooth', block: 'center'}); return; }
+    if (d.labels === true && labVials() <= 0) return fail('Tick at least one product to put labels on, or choose No labels.');
+    const payload = {ref: o.ref, phone: L.phone, labels: d.labels, skip: [...d.skip], region: d.region, address: addrJoin(d.a), email: d.email.trim()};
+    if (need) payload.proof = {image: proofJpeg(drawProof({kind: 'ORDER', ref: 'MAMMOTH LABELS · ' + o.ref, amount: String(need), img: S.fp.img}, Date.now() + (S.fp.off || 0)))};
+    const btn = $('#labSave'); btn.disabled = true; btn.textContent = need ? 'Sending payment…' : 'Saving…';
+    try { const r = await call('labelSubmit', payload); L.done = r.label; o.label = r.label; if (S.fp) S.fp.img = null; labView(); window.scrollTo(0, 0); toast('Saved. Thank you!'); }
+    catch (e) { fail(e.message); btn.disabled = false; btn.textContent = need ? 'Pay & save' : 'Save my details'; }
+  };
+}
+
+/* ---------- Admin: Mammoth labels */
+function adminLabels() {
+  const d = A.data, rows = d.labels || [], Lf = A.lf || (A.lf = {q: '', f: 'all'});
+  const chips = [['all', 'All (' + rows.length + ')'], ['yes', 'Labels (' + rows.filter(x => x.labels).length + ')'], ['unpaid', 'Needs payment (' + rows.filter(x => x.labels && !/^Paid$|^Free$/.test(x.pay)).length + ')'], ['no', 'No labels (' + rows.filter(x => !x.labels).length + ')']];
+  const have = new Set(rows.map(x => x.ref)), missing = d.orders.filter(o => o.form === 'MAMMOTH' && o.status !== 'Removed' && !have.has(o.ref));
+  $('#tab').innerHTML =
+    '<div class="sumline"><span>Answered <b>' + rows.length + '</b></span><span>Want labels <b>' + rows.filter(x => x.labels).length + '</b></span><span>Not answered yet <b>' + missing.length + '</b></span></div>' +
+    '<div class="row" style="gap:8px;margin-bottom:10px"><a class="btn sm ghost grow" style="text-decoration:none;text-align:center" href="#" id="lcopy">Copy shipping list</a></div>' +
+    '<div class="search" style="margin:0 0 10px"><span>' + ICON.search + '</span><input class="in" id="lq" type="search" placeholder="Search name, number or reference" value="' + esc(Lf.q) + '"></div>' +
+    '<div class="chips" id="lchips">' + chips.map(c => '<button class="chip" data-f="' + c[0] + '" aria-pressed="' + (Lf.f === c[0]) + '">' + c[1] + '</button>').join('') + '<button class="chip" data-f="missing" aria-pressed="' + (Lf.f === 'missing') + '">Not answered (' + missing.length + ')</button></div><div id="llist"></div>';
+  const draw = () => {
+    const q = Lf.q.trim().toLowerCase();
+    if (Lf.f === 'missing') {
+      $('#llist').innerHTML = missing.filter(o => !q || (o.ref + ' ' + o.name + ' ' + o.phone).toLowerCase().includes(q)).map(o => '<div class="ocard" style="cursor:default"><div class="row spread"><span class="ref">' + esc(o.ref) + '</span><b class="num">' + o.vials + ' vials</b></div><div>' + esc(o.name) + ' <span class="muted">· ' + esc(o.phone) + '</span></div><div class="small muted" style="margin-top:4px">Has not sent labels / address yet</div></div>').join('') || '<div class="card center"><p class="muted">Everyone has answered.</p></div>';
+      return;
+    }
+    const list = rows.filter(x => (!q || (x.ref + ' ' + x.name + ' ' + x.phone).toLowerCase().includes(q)) && (Lf.f === 'all' || (Lf.f === 'yes' && x.labels) || (Lf.f === 'no' && !x.labels) || (Lf.f === 'unpaid' && x.labels && !/^Paid$|^Free$/.test(x.pay))));
+    $('#llist').innerHTML = list.length ? list.map(x => '<div class="ocard" style="cursor:default"><div class="row spread"><span class="ref">' + esc(x.ref) + '</span><b class="num">' + x.vials + ' vial' + (x.vials === 1 ? '' : 's') + '</b></div><div>' + esc(x.name) + ' <span class="muted">· ' + esc(x.phone) + ' · ' + esc(x.region) + '</span></div>' +
+      '<div style="margin-top:6px"><span class="tag ' + (x.labels ? 'lab' : 'plain') + '" style="margin-left:0">' + (x.labels ? '🏷 labels &amp; numbers' : 'no labels') + '</span><span class="tag ' + payCls2(x.pay) + '">' + esc(x.pay) + (x.labels && x.fee ? ' · ' + fmt(x.fee) : '') + '</span></div>' +
+      (x.labels && x.skipNames ? '<div class="small muted" style="margin-top:6px">Without labels: ' + esc(x.skipNames) + '</div>' : '') +
+      '<div class="small" style="margin-top:8px">' + esc(x.address) + '</div>' + (x.email ? '<div class="small muted">' + esc(x.email) + '</div>' : '') +
+      '<div class="row" style="gap:8px;margin-top:10px"><input class="in grow" data-ln="' + esc(x.ref) + '" placeholder="Admin note" value="' + esc(x.adminNote || '') + '"><select class="in" data-lv="' + esc(x.ref) + '" aria-label="Labels"><option value="1"' + (x.labels ? ' selected' : '') + '>Labels: yes</option><option value="0"' + (!x.labels ? ' selected' : '') + '>Labels: no</option></select></div></div>').join('') : '<div class="card center"><p class="muted">Nothing here yet. Customers send labels and addresses from the welcome page.</p></div>';
+    document.querySelectorAll('[data-ln]').forEach(i => i.onchange = async () => { try { await adminCall('adminLabelSet', i.dataset.ln, {adminNote: i.value}); toast('Note saved'); } catch (e) {} });
+    document.querySelectorAll('[data-lv]').forEach(i => i.onchange = async () => { try { await adminCall('adminLabelSet', i.dataset.lv, {labels: i.value === '1'}); adminView(); toast('Updated'); } catch (e) { adminView(); } });
+  };
+  $('#lq').oninput = e => { Lf.q = e.target.value; draw(); };
+  document.querySelectorAll('#lchips [data-f]').forEach(b => b.onclick = () => { Lf.f = b.dataset.f; adminLabels(); });
+  $('#lcopy').onclick = ev => { ev.preventDefault(); copyText(rows.length ? rows.map(x => x.ref + ' · ' + x.name + ' · ' + x.phone + '\n' + x.address + ' (' + x.region + ')\n  labels: ' + (x.labels ? 'YES' : 'no') + ' · ' + x.pay).join('\n\n') : 'Nothing yet.', 'Copied the shipping list'); };
+  draw();
 }
 
 /* ---------- Mammoth shop */
@@ -1389,14 +1550,14 @@ function adminView() {
   const active = d.orders.filter(o => o.status !== 'Removed');
   const sales = active.reduce((a, o) => a + o.total, 0), unpaid = active.filter(o => o.pay !== 'Paid').length;
   const pendingPay = (d.payments || []).filter(x => x.status === 'Pending').length;
-  const tabs = [['orders', 'Orders'], ['payments', 'Payments' + (pendingPay ? ' (' + pendingPay + ')' : '')], ['yixing', 'Yixing'], ['inventory', 'Inventory'], ['proceeds', 'Proceeds'], ['products', 'Products'], ['settings', 'Settings']];
+  const tabs = [['orders', 'Orders'], ['payments', 'Payments' + (pendingPay ? ' (' + pendingPay + ')' : '')], ['yixing', 'Yixing'], ['labels', 'Labels'], ['inventory', 'Inventory'], ['proceeds', 'Proceeds'], ['products', 'Products'], ['settings', 'Settings']];
   $('#app').innerHTML =
     '<div class="top"><button class="iconbtn" id="back" aria-label="Log out">' + ICON.back + '</button><div class="grow"><div class="ttl">Admin dashboard</div><div class="sub">' + esc(d.pub.businessName) + '</div></div></div>' +
     '<div class="stats"><div class="stat"><b>' + active.length + '</b><span>active orders</span></div><div class="stat"><b>' + fmt(sales).replace('.00', '') + '</b><span>total sales</span></div><div class="stat"><b>' + unpaid + '</b><span>not fully paid</span></div></div>' +
     '<div class="tabs" role="tablist">' + tabs.map(t => '<button class="chip" role="tab" data-t="' + t[0] + '" aria-pressed="' + (A.tab === t[0]) + '">' + t[1] + '</button>').join('') + '</div><div id="tab"></div>';
   $('#back').onclick = () => { A.token = ''; A.data = null; go('welcome'); toast('Logged out. See you soon'); };
   document.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { A.tab = b.dataset.t; adminView(); });
-  ({orders: adminOrders, payments: adminPayments, yixing: adminYixing, inventory: adminInventory, proceeds: adminProceeds, products: adminProducts, settings: adminSettings})[A.tab]();
+  ({orders: adminOrders, payments: adminPayments, yixing: adminYixing, labels: adminLabels, inventory: adminInventory, proceeds: adminProceeds, products: adminProducts, settings: adminSettings})[A.tab]();
 }
 
 
@@ -1799,7 +1960,7 @@ function adminSettings() {
     '<div class="card"><h2 class="h-md" style="margin-bottom:12px">Bunuan rules</h2>' +
     yn('s_singleVialInBunuan', 'Allow 1-vial orders when a kit is in bunuan?', s.singleVialInBunuan) + '<p class="hint">Off by default: every item keeps its minimum. Turn it on when you want customers to help fill an open kit with a single vial. You can also switch it off for individual products in the Products tab.</p></div>' +
     '<div class="card"><h2 class="h-md" style="margin-bottom:12px">Order forms</h2>' +
-    inp('s_mammothTitle', 'Mammoth form title', s.mammothTitle) + yn('s_mammothOpen', 'Mammoth open for new orders?', s.mammothOpen) +
+    inp('s_mammothTitle', 'Mammoth form title', s.mammothTitle) + yn('s_mammothOpen', 'Mammoth open for new orders?', s.mammothOpen) + yn('s_labelsOpen', 'Show the Mammoth labels &amp; address section on the welcome page?', s.labelsOpen) + inp('s_labelFee', 'Mammoth label fee per vial (₱)', s.labelFee, 'number', '0 means labels are free and no payment is asked.') +
     inp('s_fuanTitle', 'Fuan GB2 form title', s.fuanTitle) + yn('s_fuanOpen', 'Fuan GB2 open for new orders?', s.fuanOpen) + inp('s_fuan3Title', 'Fuan GB3 form title', s.fuan3Title) + yn('s_fuan3Open', 'Fuan GB3 open for new orders?', s.fuan3Open) + '<p class="hint">Fuan GB3 has its own products and orders. Edit its price under Products (group buy: Fuan GB3). It only appears on the home page once it is open.</p></div>' +
     '<div class="card"><h2 class="h-md" style="margin-bottom:12px">Yixing order form</h2>' +
     inp('s_yixTitle', 'Yixing form title', s.yixTitle) + yn('s_yixOpen', 'Yixing open for new orders?', s.yixOpen) + yn('s_yixBunuan', 'Bunuan mode on? (Yes = a single vial is allowed, No = at least 2 vials per order)', s.yixBunuan) +
@@ -1849,7 +2010,7 @@ function adminSettings() {
     const btn = $('#ssave'); btn.disabled = true; btn.textContent = 'Saving…';
     const g = id => $('#' + id).value;
     const body = {usdRate: g('s_usdRate'), packagingFee: g('s_packagingFee'), shipLuzon: g('s_shipLuzon'), shipVisayas: g('s_shipVisayas'), shipMindanao: g('s_shipMindanao'),
-      fuan3Title: g('s_fuan3Title'), fuan3Open: g('s_fuan3Open'), singleVialInBunuan: g('s_singleVialInBunuan'), mammothTitle: g('s_mammothTitle'), mammothOpen: g('s_mammothOpen'), fuanTitle: g('s_fuanTitle'), fuanOpen: g('s_fuanOpen'),
+      fuan3Title: g('s_fuan3Title'), fuan3Open: g('s_fuan3Open'), singleVialInBunuan: g('s_singleVialInBunuan'), mammothTitle: g('s_mammothTitle'), labelsOpen: g('s_labelsOpen'), labelFee: g('s_labelFee'), mammothOpen: g('s_mammothOpen'), fuanTitle: g('s_fuanTitle'), fuanOpen: g('s_fuanOpen'),
       businessName: g('s_businessName'), adminWhatsapp: g('s_adminWhatsapp'), communityLink: g('s_communityLink'), customerViewLink: g('s_customerViewLink'), siteLink: g('s_siteLink'), yixTitle: g('s_yixTitle'), welcomeTitle: g('s_welcomeTitle'), welcomeText: g('s_welcomeText'), welcomeTag: g('s_welcomeTag'), welcomePoints: g('s_welcomePoints'), yixOpen: g('s_yixOpen'), yixBunuan: g('s_yixBunuan'), yixPackaging: g('s_yixPackaging'), yixShipLuzon: g('s_yixShipLuzon'), yixShipVisayas: g('s_yixShipVisayas'), yixShipMindanao: g('s_yixShipMindanao'), yixLabelFee: g('s_yixLabelFee'), yixNote: g('s_yixNote'), announcement: g('s_announcement'), paymentNote: g('s_paymentNote')};
     try { await adminCall('adminSaveSettings', body); await refreshPublic(); adminView(); toast('Settings saved. The website is updated'); }
     catch (e) { btn.disabled = false; btn.textContent = 'Save settings'; $('#serr').innerHTML = '<div class="alert err" role="alert">' + esc(e.message) + '</div>'; }
