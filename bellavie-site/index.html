@@ -878,6 +878,18 @@ body:has(.cartbar) #list{padding-bottom:150px}
 .addr{background:var(--glass);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:inset 0 1px 0 #fff;margin-top:10px}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}.addr .field{margin-bottom:12px}
 @media (max-width:360px){.g2{grid-template-columns:1fr}}
+
+/* ---- vial label product ticks: big visible checkboxes */
+.lp-tools{display:flex;gap:8px;margin:0 0 10px}
+.lp{display:flex;align-items:center;gap:12px;margin:0 0 8px;padding:12px 14px;border:1.5px solid var(--line);border-radius:16px;background:linear-gradient(180deg,#fff,#fdf2f6);box-shadow:inset 0 1.5px 0 #fff,0 6px 12px -9px rgba(177,58,100,.5);cursor:pointer;min-height:56px}
+.lp.on{border-color:var(--berry);background:linear-gradient(180deg,#fff,#fbe3ea)}
+.lp input{position:absolute;opacity:0;width:1px;height:1px}
+.lpbox{flex:none;width:30px;height:30px;border-radius:9px;border:2.5px solid #b8808f;background:#fff;box-shadow:inset 0 2px 4px rgba(177,58,100,.25);display:flex;align-items:center;justify-content:center}
+.lp.on .lpbox{background:linear-gradient(180deg,#c9487a,#8f2a50);border-color:#7c1f45;box-shadow:inset 0 1.5px 0 rgba(255,255,255,.4)}
+.lp.on .lpbox::after{content:"";width:8px;height:15px;border:solid #fff;border-width:0 3.5px 3.5px 0;transform:rotate(45deg) translate(-1px,-2px)}
+.lp input:focus-visible+.lpbox{outline:3px solid rgba(177,58,100,.4);outline-offset:2px}
+.lptx{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.3}
+.lppr{flex:none;font-weight:800;color:var(--berry-d)}
 </style>
 </head>
 <body>
@@ -1715,7 +1727,7 @@ function labView() {
     '<div class="card flo"><div class="row spread"><span class="ref">' + esc(o.ref) + '</span><b class="num">' + o.vials + ' vial' + (o.vials === 1 ? '' : 's') + '</b></div><div>' + esc(o.name) + ' <span class="muted small">· ' + esc(o.status) + '</span></div></div>' +
     '<div class="card"><h2 class="sec"><span class="n">1</span>Vial labels &amp; numbers</h2><p class="muted" style="margin:0 0 12px">Sticker labels with the peptide name and a number on each vial. ' + (fee > 0 ? 'It costs <b>' + fmt(fee) + ' per vial</b>, worked out from your order.' : 'It is free.') + '</p>' +
     '<div class="seg two" id="labYN"><button class="opt big" type="button" data-v="1" aria-pressed="' + (d.labels === true) + '">Yes, add labels' + (fee > 0 ? '<small>' + fmt(fee) + ' per vial</small>' : '') + '</button><button class="opt big" type="button" data-v="0" aria-pressed="' + (d.labels === false) + '">No, thank you</button></div></div>' +
-    '<div class="card" id="labProdsCard" hidden><h2 class="sec"><span class="n">&#10003;</span>Which products get labels?</h2><p class="muted" style="margin:0 0 10px">Untick any product you do <b>not</b> want labels on. The price updates automatically.</p><div id="labProds"></div><div class="line" style="margin-top:10px"><span><b>Labels for <span id="labN"></span> vial(s)</b></span><span class="num" id="labTot"></span></div></div>' +
+    '<div class="card" id="labProdsCard" hidden><h2 class="sec"><span class="n">&#10003;</span>Tick the products for labels</h2><p class="muted" style="margin:0 0 10px">Tick the products you want labels on. <b>Only the ticked products get labels</b>, and the price updates automatically.</p><div id="labProds"></div><div class="line" style="margin-top:10px"><span><b>Labels for <span id="labN"></span> vial(s)</b></span><span class="num" id="labTot"></span></div></div>' +
     '<div class="card"><h2 class="sec"><span class="n">2</span>Delivery address</h2>' +
     '<div class="field"><label class="f">Region</label><div class="seg three" id="labReg">' + ['Luzon', 'Visayas', 'Mindanao'].map(r => '<button class="opt" type="button" data-r="' + r + '" aria-pressed="' + (d.region === r) + '">' + r + '</button>').join('') + '</div></div>' +
     '<div class="addr"><div class="addr-h"><b>Complete address</b><span class="addr-prog" id="labProg"></span></div>' +
@@ -1729,9 +1741,11 @@ function labView() {
   const paidAlready = ex && ex.labels && /^Paid/.test(ex.pay);
   const drawProds = () => {
     const card = $('#labProdsCard'); card.hidden = d.labels !== true;
-    $('#labProds').innerHTML = items.map(i => '<label class="switch" style="margin:0 0 8px"><input type="checkbox" data-sk="' + esc(i.code) + '"' + (d.skip.has(i.code) ? '' : ' checked') + '><span class="sw"></span><span><b>' + esc(i.name) + '</b> <span class="muted small">' + esc(i.spec) + ' · ' + i.qty + ' vial' + (i.qty === 1 ? '' : 's') + (fee > 0 ? ' · ' + fmt(fee * i.qty) : '') + '</span></span></label>').join('');
+    $('#labProds').innerHTML = '<div class="lp-tools"><button type="button" class="btn sm soft" id="lpAll">Tick all</button><button type="button" class="btn sm ghost" id="lpNone">Clear</button></div>' + items.map(i => '<label class="lp' + (d.skip.has(i.code) ? '' : ' on') + '"><input type="checkbox" data-sk="' + esc(i.code) + '"' + (d.skip.has(i.code) ? '' : ' checked') + '><span class="lpbox" aria-hidden="true"></span><span class="lptx"><b>' + esc(i.name) + '</b><span class="muted small">' + esc(i.spec) + ' · ' + i.qty + ' vial' + (i.qty === 1 ? '' : 's') + '</span></span><span class="lppr num">' + (fee > 0 ? (d.skip.has(i.code) ? '—' : fmt(fee * i.qty)) : (d.skip.has(i.code) ? '' : 'Free')) + '</span></label>').join('');
     $('#labN').textContent = labVials(); $('#labTot').textContent = fee > 0 ? fmt(totalNow()) : 'Free';
-    document.querySelectorAll('[data-sk]').forEach(c => c.onchange = () => { if (c.checked) d.skip.delete(c.dataset.sk); else d.skip.add(c.dataset.sk); $('#labN').textContent = labVials(); $('#labTot').textContent = fee > 0 ? fmt(totalNow()) : 'Free'; refreshPay(); });
+    document.querySelectorAll('[data-sk]').forEach(c => c.onchange = () => { if (c.checked) d.skip.delete(c.dataset.sk); else d.skip.add(c.dataset.sk); drawProds(); refreshPay(); });
+    $('#lpAll').onclick = () => { d.skip.clear(); drawProds(); refreshPay(); };
+    $('#lpNone').onclick = () => { items.forEach(i => d.skip.add(i.code)); drawProds(); refreshPay(); };
   };
   const due = () => { const t = totalNow(); return d.labels === true && t > 0 ? Math.max(0, Math.round((t - (paidAlready ? (ex.fee || 0) : 0)) * 100) / 100) : 0; };
   const refreshPay = () => {
@@ -1740,7 +1754,7 @@ function labView() {
     el.innerHTML = fuanPayCard().replace('Pay to place your order', 'Pay for your labels').replace('Your order is only placed with your payment.', 'Labels are added once your payment is sent.');
     $('#payamt').textContent = fmt(due()); bindFuanPay(); $('#labSave').textContent = 'Pay & save';
   };
-  $('#labYN').onclick = ev => { const b = ev.target.closest('[data-v]'); if (!b) return; d.labels = b.dataset.v === '1'; document.querySelectorAll('#labYN .opt').forEach(x => x.setAttribute('aria-pressed', String(x === b))); drawProds(); refreshPay(); };
+  $('#labYN').onclick = ev => { const b = ev.target.closest('[data-v]'); if (!b) return; d.labels = b.dataset.v === '1'; if (d.labels && !L.touched && !(ex && ex.labels)) { items.forEach(i => d.skip.add(i.code)); } L.touched = true; document.querySelectorAll('#labYN .opt').forEach(x => x.setAttribute('aria-pressed', String(x === b))); drawProds(); refreshPay(); };
   $('#labReg').onclick = ev => { const b = ev.target.closest('[data-r]'); if (!b) return; d.region = b.dataset.r; document.querySelectorAll('#labReg .opt').forEach(x => x.setAttribute('aria-pressed', String(x === b))); };
   const prog = () => { const n = ADDR_KEYS.filter(k => (k === 'zp' ? /^\d{4}$/.test(d.a.zp.trim()) : d.a[k].trim().length >= 2)).length, el = $('#labProg'); if (el) { el.textContent = n + ' of 5 complete'; el.classList.toggle('ok', n === 5); } };
   ADDR_KEYS.forEach(k => { $('#lad_' + k).oninput = ev => { if (k === 'zp') ev.target.value = ev.target.value.replace(/\D/g, '').slice(0, 4); d.a[k] = ev.target.value; prog(); }; });
