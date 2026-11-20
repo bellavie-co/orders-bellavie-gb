@@ -994,7 +994,7 @@ const pick = list => list[addN++ % list.length];
 const S = {
   view: 'welcome', cfg: null, products: [], kits: {},
   form: 'MAMMOTH', cart: {}, mode: {}, step: 1, q: '', filter: 'all', cat: '', categories: [], open: {},
-  draft: {name: '', phone: store.get('blvc_phone', ''), region: '', note: '', combined: false, mammothRef: '', a: {st: '', br: '', ci: '', pr: '', zp: '', lm: ''}, payNow: ''},
+  draft: {name: '', phone: store.get('blvc_phone', ''), region: '', note: '', combined: false, mammothRef: '', a: {st: '', br: '', ci: '', pr: '', zp: '', lm: ''}, payNow: '', lab: []},
   mm: null, editing: null, editBase: {}, order: null, justSaved: '', busy: false, error: '',
   find: {ref: '', phone: store.get('blvc_phone', ''), error: ''},
   admin: {token: '', data: null, tab: 'orders', f: {q: '', form: '', pay: '', status: ''}, edit: null, error: '', prodQ: ''}
@@ -1660,7 +1660,7 @@ function welcomeHtml() {
     (S.cfg.customerViewLink ? '<div class="stack" style="margin-top:10px"><a class="btn ghost" href="' + esc(S.cfg.customerViewLink) + '" target="_blank" rel="noopener">' + ICON.box + ' See the live order board</a></div>' : '') +
     (recent.length ? '<p class="small muted" style="margin-top:14px">Your last order: <button class="linkbtn" id="lastBtn">' + esc(recent[0].ref) + '</button></p>' : '') +
     '<div class="talk"><a class="btn soft" href="' + esc(S.cfg.communityLink) + '" target="_blank" rel="noopener">' + ICON.wa + ' Join our WhatsApp community</a></div></div>' +
-  '<footer class="foot"><p>Questions? Chat with us directly.</p><p class="small muted" style="margin:4px 0 0">Site version: Nov 20 · 2:50 PM</p><div class="waline"><a class="btn ghost" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center" target="_blank" rel="noopener" href="' + 'https://api.whatsapp.com/send?phone=' + esc(S.cfg.adminWhatsapp) + '&text=' + encodeURIComponent('Hi ' + S.cfg.businessName + '! I have a question.') + '">Message ' + esc(localNum(S.cfg.adminWhatsapp)) + '</a></div><button class="linkbtn" id="adminLink" style="font-size:13px;opacity:.7">Admin</button></footer>';
+  '<footer class="foot"><p>Questions? Chat with us directly.</p><p class="small muted" style="margin:4px 0 0">Site version: Nov 20 · 6:30 PM</p><div class="waline"><a class="btn ghost" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center" target="_blank" rel="noopener" href="' + 'https://api.whatsapp.com/send?phone=' + esc(S.cfg.adminWhatsapp) + '&text=' + encodeURIComponent('Hi ' + S.cfg.businessName + '! I have a question.') + '">Message ' + esc(localNum(S.cfg.adminWhatsapp)) + '</a></div><button class="linkbtn" id="adminLink" style="font-size:13px;opacity:.7">Admin</button></footer>';
 }
 function bindWelcome() {
   bindLabWelcome(); startCountdowns(); revealOnScroll(); bindRate(); bindPoll(); bgStart(); bindWelcomeFx(); if ($('#goCmp2')) $('#goCmp2').onclick = () => go('compare');
@@ -2150,7 +2150,7 @@ async function startForm(form, resume) {
   const info = S.cfg.forms[form];
   S.form = form; S.mode = {}; S.fuan = {size: 0}; S.cart = {}; S.step = 1; S.q = ''; S.filter = 'all'; S.cat = ''; S.open = {}; S.mm = null;
   S.editing = null; S.editBase = {}; S.editBasePrice = {};
-  S.draft = {name: '', phone: store.get('blvc_phone', ''), region: '', note: '', combined: false, mammothRef: '', a: {st: '', br: '', ci: '', pr: '', zp: '', lm: ''}, payNow: ''};
+  S.draft = {name: '', phone: store.get('blvc_phone', ''), region: '', note: '', combined: false, mammothRef: '', a: {st: '', br: '', ci: '', pr: '', zp: '', lm: ''}, payNow: '', lab: []};
   if (resume) applyCartTo(form, resume);
   go(form === 'MAMMOTH' ? 'shop' : 'fuan');
 }
@@ -2288,6 +2288,27 @@ function renderCartBar() {
 /* ---------- Mammoth: ready to pay now, or keep it in the cart */
 const placeLabel = () => { const m = S.draft.payNow; return m === 'now' ? 'Place order &amp; send payment' : m === 'later' ? '🛍 Keep in my cart' : 'Choose how you will pay'; };
 const placeNote = () => { const m = S.draft.payNow; return m === 'later' ? 'A cart is not an order and nothing is reserved. Your items are only secured once your order is paid.' : 'Your invoice and reference number appear right after you place your order.'; };
+const labFeeEach = () => (S.cfg.labels && S.cfg.labels.open && Number(S.cfg.labels.fee)) || 0;
+const labOn = () => S.form === 'MAMMOTH' && !S.editing && S.cfg.labels && S.cfg.labels.open;
+const labCodes = () => labOn() ? calc().items.filter(i => (S.draft.lab || []).includes(i.p.code)) : [];
+const labVialsNow = () => labCodes().reduce((a, i) => a + i.q, 0);
+const labFeeNow = () => Math.round(labFeeEach() * labVialsNow() * 100) / 100;
+const payTotal = () => Math.round((calc().total + labFeeNow()) * 100) / 100;
+function labelChoiceHtml() {
+  if (!labOn()) return '';
+  const it = calc().items, fee = labFeeEach();
+  if (!it.length) return '';
+  return '<div class="card" id="labChoice"><h2 class="h-md" style="margin-bottom:4px">Vial labels &amp; numbers <span class="muted small">(optional)</span></h2><p class="small muted" style="margin:0 0 10px">Sticker labels with the peptide name and a number on each vial' + (fee > 0 ? ', <b>' + fmt(fee) + ' per vial</b>' : '') + '. Tick only the products you want labels on.</p>' +
+    it.map(i => { const on = (S.draft.lab || []).includes(i.p.code); return '<label class="lp' + (on ? ' on' : '') + '"><input type="checkbox" data-lc="' + esc(i.p.code) + '"' + (on ? ' checked' : '') + '><span class="lpbox" aria-hidden="true"></span><span class="lptx"><b>' + esc(i.p.name) + '</b><span class="muted small">' + esc(i.p.spec || '') + ' · ' + i.q + ' vial' + (i.q === 1 ? '' : 's') + '</span></span><span class="lppr num">' + (on ? (fee > 0 ? fmt(fee * i.q) : 'Free') : '—') + '</span></label>'; }).join('') +
+    '<div class="line" style="margin-top:8px"><span><b>Labels for <span id="lcN">' + labVialsNow() + '</span> vial(s)</b></span><span class="num" id="lcTot">' + (fee > 0 ? fmt(labFeeNow()) : 'Free') + '</span></div></div>';
+}
+function bindLabChoice() {
+  const box = $('#labChoice'); if (!box) return;
+  box.querySelectorAll('[data-lc]').forEach(c => c.onchange = () => {
+    const a = new Set(S.draft.lab || []); if (c.checked) a.add(c.dataset.lc); else a.delete(c.dataset.lc); S.draft.lab = [...a];
+    box.outerHTML = labelChoiceHtml(); bindLabChoice(); const pa = $('#payamt'); if (pa) pa.textContent = fmt(payTotal());
+  });
+}
 function payChoiceHtml() {
   const m = S.draft.payNow;
   return '<div class="card"><h2 class="h-md" style="margin-bottom:4px">Ready to pay?</h2><p class="small muted" style="margin:0 0 12px">We take orders as they are paid. If you are not ready yet, your items stay in your cart, but <b>a cart does not reserve anything</b>.</p>' +
@@ -2295,7 +2316,7 @@ function payChoiceHtml() {
 }
 function drawPayArea() {
   const el = $('#payArea'); if (!el) return;
-  if (S.draft.payNow === 'now') { el.innerHTML = fuanPayCard(); bindFuanPay(); const pa = $('#payamt'); if (pa) pa.textContent = fmt(calc().total); } else el.innerHTML = '';
+  if (S.draft.payNow === 'now') { el.innerHTML = fuanPayCard(); bindFuanPay(); const pa = $('#payamt'); if (pa) pa.textContent = fmt(payTotal()); } else el.innerHTML = '';
   const pl = $('#place'); if (pl) pl.innerHTML = placeLabel(); const pn = $('#placeNote'); if (pn) pn.textContent = placeNote();
 }
 function bindPayChoice() {
@@ -2329,13 +2350,13 @@ function detailsView() {
     '<div class="top"><button class="iconbtn" id="back" aria-label="Back to items">' + ICON.back + '</button><div class="grow"><div class="ttl">Your details</div><div class="sub">' + (e ? 'Editing ' + esc(e.ref) : esc(S.cfg.forms.MAMMOTH.title)) + '</div></div></div>' +
     detailsForm(false) +
     vchCard() + '<div class="card"><h2 class="h-md" style="margin-bottom:6px">Your order</h2><div id="summary"></div></div>' +
-    (e ? '' : payChoiceHtml()) + '<div id="payArea"></div>' +
+    (e ? '' : labelChoiceHtml() + payChoiceHtml()) + '<div id="payArea"></div>' +
     '<div id="err"></div>' +
     '<button class="btn" id="place">' + (e ? 'Save changes' : placeLabel()) + '</button>' +
     '<p class="small muted center" id="placeNote" style="margin-top:12px">' + (e ? 'Your invoice and reference number appear right after you place your order.' : placeNote()) + '</p>';
   $('#back').onclick = () => go('shop');
   bindDetails(false);
-  if (!e) bindPayChoice();
+  if (!e) { bindLabChoice(); bindPayChoice(); }
   renderSummary();
   vchMount(S.draft, S.form, S.editing, () => calc().sub, renderSummary);
   $('#place').onclick = place;
@@ -2444,7 +2465,7 @@ function summaryHtml() {
     vchLines(c.vc.parts) +
     '<div class="line total"><span>Total</span><span class="num">' + fmt(c.total) + '</span></div>';
 }
-function renderSummary() { const el = $('#summary'); if (el) el.innerHTML = summaryHtml(); const pa = $('#payamt'); if (pa) pa.textContent = fmt(calc().total); }
+function renderSummary() { const el = $('#summary'); if (el) el.innerHTML = summaryHtml(); const pa = $('#payamt'); if (pa) pa.textContent = fmt(S.form === 'MAMMOTH' ? payTotal() : calc().total); }
 async function place() {
   const c = calc(), d = S.draft, e = S.editing, btn = $('#place'), err = $('#err');
   err.innerHTML = '';
@@ -2467,9 +2488,10 @@ async function place() {
   const payload = {form: S.form, name: d.name, phone: d.phone, region: d.region, note: d.note,
     items: c.items.map(i => ({code: i.p.code, qty: i.q})), combined: holdT2 ? false : d.combined, mammothRef: holdT2 ? '' : d.mammothRef};
   if (needAddr) payload.address = addrJoin(d.a);
+  if (S.form === 'MAMMOTH' && !e && labCodes().length) payload.labels = labCodes().map(i => i.p.code);
   if (holdQ) payload.hold = S.hold.ans;
   payload.vouchers = (d.vlist || []).map(v => v.code);
-  if (needsPayNow()) payload.proof = {image: proofJpeg(drawProof({kind: 'ORDER', ref: (S.cfg.forms[S.form].title + ' ORDER · ' + d.name.trim()).toUpperCase(), amount: String(c.total), img: S.fp.img}, Date.now() + (S.fp.off || 0)))};
+  if (needsPayNow()) payload.proof = {image: proofJpeg(drawProof({kind: 'ORDER', ref: (S.cfg.forms[S.form].title + ' ORDER · ' + d.name.trim()).toUpperCase(), amount: String(S.form === 'MAMMOTH' ? payTotal() : c.total), img: S.fp.img}, Date.now() + (S.fp.off || 0)))};
   btn.disabled = true; btn.textContent = needsPayNow() ? 'Placing your order…' : 'Saving your order…';
   try {
     const r = e ? await call('updateOrder', e.ref, e.phone, payload) : await call('submitOrder', payload);
@@ -2601,7 +2623,7 @@ function doneView() {
     '<div class="stack"><button class="btn" id="copyInv2">' + ICON.copy + ' Copy invoice</button><button class="btn ghost" id="copyNum">' + ICON.copy + ' Copy WhatsApp number</button>' +
     '<a class="btn soft" href="' + esc(waApp(o.invoice)) + '">' + ICON.wa + ' Open in the WhatsApp app</a></div></div>' +
     '<a class="btn soft" href="' + esc(S.cfg.communityLink) + '" target="_blank" rel="noopener">' + ICON.wa + ' Join our WhatsApp community</a></div>' +
-    (fresh && o.form === 'MAMMOTH' && o.status !== 'Removed' && S.cfg.labels && S.cfg.labels.open ? '<div class="card" style="margin-top:16px"><h2 class="h-md" style="margin-bottom:4px">Vial labels (optional)</h2><p class="small muted" style="margin-bottom:12px">We already have your delivery address. Want vial labels &amp; numbers' + (S.cfg.labels.fee > 0 ? ' (' + fmt(S.cfg.labels.fee) + ' per vial, optional)' : ' (optional)') + '.</p><button class="btn" id="goAddr">Add vial labels</button><div id="addrErr"></div></div>' : '') +
+    (o.form === 'MAMMOTH' && o.status !== 'Removed' && S.cfg.labels && S.cfg.labels.open ? '<div class="card" style="margin-top:16px"><h2 class="h-md" style="margin-bottom:4px">Vial labels (optional)</h2><p class="small muted" style="margin-bottom:12px">We already have your delivery address. Want vial labels &amp; numbers' + (S.cfg.labels.fee > 0 ? ' (' + fmt(S.cfg.labels.fee) + ' per vial, optional)' : ' (optional)') + '.</p><button class="btn" id="goAddr">Add vial labels</button><div id="addrErr"></div></div>' : '') +
     (o.status !== 'Removed' ? '<div class="card" style="margin-top:16px"><h2 class="h-md" style="margin-bottom:4px">Ready to pay?</h2><p class="small muted" style="margin-bottom:12px">Upload your payment screenshot here. We add a watermark with this reference number for you.</p><button class="btn" id="payBtn2">' + ICON.up + ' Upload payment proof</button><div id="paylist" style="margin-top:12px"></div></div>' : '') +
     '<div style="height:18px"></div>' + receiptHtml(o) +
     (o.lockReason ? '<div class="alert warn" style="margin-top:16px">' + esc(o.lockReason) + '</div>' : '') +
