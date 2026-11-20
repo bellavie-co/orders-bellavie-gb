@@ -2210,7 +2210,7 @@ function renderList() {
     const kitOpen = g.items.some(p => p.kitSize > 1 && kitInfo(p, 0).baseRest > 0);
     const from = Math.min.apply(null, g.items.map(p => p.vialPrice));
     return head + '<section class="group' + (isOpen ? ' open' : '') + '"><button class="ghead" data-g="' + esc(g.name) + '" aria-expanded="' + !!isOpen + '">' +
-      '<span class="grow"><span class="nm">' + esc(g.name) + '</span>' + (cartN ? '<span class="tag cart">' + cartN + ' in order</span>' : '') + (kitOpen ? '<span class="tag kit">kit open</span>' : '') +
+      '<span class="grow"><span class="nm">' + esc(g.name) + '</span>' + (cartN ? '<span class="tag cart">' + cartN + ' in order</span>' : '') + '' +
       '<br><span class="fr">' + g.items.length + ' option' + (g.items.length > 1 ? 's' : '') + ' · from ' + fmt(from) + ' per vial</span></span>' + ICON.chev + '</button>' +
       (isOpen ? '<div class="variants">' + g.items.map(variantHtml).join('') + '</div>' : '') + '</section>';
   }).join('');
