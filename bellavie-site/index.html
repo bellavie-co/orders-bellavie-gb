@@ -1660,7 +1660,7 @@ function welcomeHtml() {
     (S.cfg.customerViewLink ? '<div class="stack" style="margin-top:10px"><a class="btn ghost" href="' + esc(S.cfg.customerViewLink) + '" target="_blank" rel="noopener">' + ICON.box + ' See the live order board</a></div>' : '') +
     (recent.length ? '<p class="small muted" style="margin-top:14px">Your last order: <button class="linkbtn" id="lastBtn">' + esc(recent[0].ref) + '</button></p>' : '') +
     '<div class="talk"><a class="btn soft" href="' + esc(S.cfg.communityLink) + '" target="_blank" rel="noopener">' + ICON.wa + ' Join our WhatsApp community</a></div></div>' +
-  '<footer class="foot"><p>Questions? Chat with us directly.</p><p class="small muted" style="margin:4px 0 0">Site version: Nov 20 · 2:30 PM</p><div class="waline"><a class="btn ghost" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center" target="_blank" rel="noopener" href="' + 'https://api.whatsapp.com/send?phone=' + esc(S.cfg.adminWhatsapp) + '&text=' + encodeURIComponent('Hi ' + S.cfg.businessName + '! I have a question.') + '">Message ' + esc(localNum(S.cfg.adminWhatsapp)) + '</a></div><button class="linkbtn" id="adminLink" style="font-size:13px;opacity:.7">Admin</button></footer>';
+  '<footer class="foot"><p>Questions? Chat with us directly.</p><p class="small muted" style="margin:4px 0 0">Site version: Nov 20 · 2:50 PM</p><div class="waline"><a class="btn ghost" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center" target="_blank" rel="noopener" href="' + 'https://api.whatsapp.com/send?phone=' + esc(S.cfg.adminWhatsapp) + '&text=' + encodeURIComponent('Hi ' + S.cfg.businessName + '! I have a question.') + '">Message ' + esc(localNum(S.cfg.adminWhatsapp)) + '</a></div><button class="linkbtn" id="adminLink" style="font-size:13px;opacity:.7">Admin</button></footer>';
 }
 function bindWelcome() {
   bindLabWelcome(); startCountdowns(); revealOnScroll(); bindRate(); bindPoll(); bgStart(); bindWelcomeFx(); if ($('#goCmp2')) $('#goCmp2').onclick = () => go('compare');
@@ -1696,7 +1696,6 @@ function bindLabWelcome() {
   };
   const run = async () => {
     const ph = $('#labPh').value.trim(), btn = $('#labFind'); L.phone = ph;
-    if (L.pick === null) { el.innerHTML = '<div class="alert err" style="margin-top:14px">Choose first: Yes, add vial labels, or No labels.</div>'; return; }
     if (ph.replace(/\D/g, '').length < 10) { el.innerHTML = '<div class="alert err" style="margin-top:14px">Enter the WhatsApp number you used, e.g. 0917 123 4567.</div>'; return; }
     btn.disabled = true; btn.textContent = 'Looking…';
     try { const r = await call('findOrders', ph); L.orders = r.orders; L.fee = r.fee; store.set('blvc_phone', ph); draw(); }
@@ -1711,7 +1710,7 @@ function labView() {
   const L = S.lab, o = L.sel, fee = (S.cfg.labels && S.cfg.labels.fee) || 0;
   if (!o) { go('welcome'); return; }
   const ex = o.label, items = o.items || [];
-  if (!L.d) L.d = {labels: L.pick !== null ? L.pick : (ex ? ex.labels : null), region: (ex && ex.region) || o.region || '', a: addrParse(ex ? ex.address : ''), email: (ex && ex.email) || '', skip: new Set((ex && ex.skip) || [])};
+  if (!L.d) L.d = {labels: null, region: (ex && ex.region) || o.region || '', a: addrParse(ex ? ex.address : ''), email: (ex && ex.email) || '', skip: new Set(ex && ex.labels ? (ex.skip || []) : items.map(i => i.code))};
   const labVials = () => items.reduce((a, i) => a + (d.skip.has(i.code) ? 0 : i.qty), 0), totalNow = () => Math.round(fee * labVials() * 100) / 100;
   const d = L.d;
   if (L.done) {
@@ -1725,9 +1724,8 @@ function labView() {
   $('#app').innerHTML =
     '<div class="top"><button class="iconbtn" id="back" aria-label="Back">' + ICON.back + '</button><div class="grow"><div class="ttl">Labels &amp; shipping details</div><div class="sub">' + esc(o.formTitle) + '</div></div></div>' +
     '<div class="card flo"><div class="row spread"><span class="ref">' + esc(o.ref) + '</span><b class="num">' + o.vials + ' vial' + (o.vials === 1 ? '' : 's') + '</b></div><div>' + esc(o.name) + ' <span class="muted small">· ' + esc(o.status) + '</span></div></div>' +
-    '<div class="card"><h2 class="sec"><span class="n">1</span>Vial labels &amp; numbers</h2><p class="muted" style="margin:0 0 12px">Sticker labels with the peptide name and a number on each vial. ' + (fee > 0 ? 'It costs <b>' + fmt(fee) + ' per vial</b>, worked out from your order.' : 'It is free.') + '</p>' +
-    '<div class="seg two" id="labYN"><button class="opt big" type="button" data-v="1" aria-pressed="' + (d.labels === true) + '">Yes, add labels' + (fee > 0 ? '<small>' + fmt(fee) + ' per vial</small>' : '') + '</button><button class="opt big" type="button" data-v="0" aria-pressed="' + (d.labels === false) + '">No, thank you</button></div></div>' +
-    '<div class="card" id="labProdsCard" hidden><h2 class="sec"><span class="n">&#10003;</span>Tick the products for labels</h2><p class="muted" style="margin:0 0 10px">Tick the products you want labels on. <b>Only the ticked products get labels</b>, and the price updates automatically.</p><div id="labProds"></div><div class="line" style="margin-top:10px"><span><b>Labels for <span id="labN"></span> vial(s)</b></span><span class="num" id="labTot"></span></div></div>' +
+    '<div class="card"><h2 class="sec"><span class="n">1</span>Vial labels &amp; numbers <span class="muted small">(optional)</span></h2><p class="muted" style="margin:0 0 4px">Sticker labels with the peptide name and a number on each vial. ' + (fee > 0 ? 'It costs <b>' + fmt(fee) + ' per vial</b>, worked out from your order.' : 'It is free.') + ' Tick the products you want labels on. <b>Only the ticked products get labels.</b> Leave everything unticked if you do not want labels.</p></div>' +
+    '<div class="card" id="labProdsCard"><h2 class="sec"><span class="n">&#10003;</span>Tick the products for labels</h2><div id="labProds"></div><div class="line" style="margin-top:10px"><span><b>Labels for <span id="labN"></span> vial(s)</b></span><span class="num" id="labTot"></span></div></div>' +
     '<div class="card"><h2 class="sec"><span class="n">2</span>Delivery address</h2>' +
     '<div class="field"><label class="f">Region</label><div class="seg three" id="labReg">' + ['Luzon', 'Visayas', 'Mindanao'].map(r => '<button class="opt" type="button" data-r="' + r + '" aria-pressed="' + (d.region === r) + '">' + r + '</button>').join('') + '</div></div>' +
     '<div class="addr"><div class="addr-h"><b>Complete address</b><span class="addr-prog" id="labProg"></span></div>' +
@@ -1740,21 +1738,20 @@ function labView() {
   $('#back').onclick = () => go('welcome');
   const paidAlready = ex && ex.labels && /^Paid/.test(ex.pay);
   const drawProds = () => {
-    const card = $('#labProdsCard'); card.hidden = d.labels !== true;
+    d.labels = labVials() > 0;
     $('#labProds').innerHTML = '<div class="lp-tools"><button type="button" class="btn sm soft" id="lpAll">Tick all</button><button type="button" class="btn sm ghost" id="lpNone">Clear</button></div>' + items.map(i => '<label class="lp' + (d.skip.has(i.code) ? '' : ' on') + '"><input type="checkbox" data-sk="' + esc(i.code) + '"' + (d.skip.has(i.code) ? '' : ' checked') + '><span class="lpbox" aria-hidden="true"></span><span class="lptx"><b>' + esc(i.name) + '</b><span class="muted small">' + esc(i.spec) + ' · ' + i.qty + ' vial' + (i.qty === 1 ? '' : 's') + '</span></span><span class="lppr num">' + (fee > 0 ? (d.skip.has(i.code) ? '—' : fmt(fee * i.qty)) : (d.skip.has(i.code) ? '' : 'Free')) + '</span></label>').join('');
     $('#labN').textContent = labVials(); $('#labTot').textContent = fee > 0 ? fmt(totalNow()) : 'Free';
     document.querySelectorAll('[data-sk]').forEach(c => c.onchange = () => { if (c.checked) d.skip.delete(c.dataset.sk); else d.skip.add(c.dataset.sk); drawProds(); refreshPay(); });
     $('#lpAll').onclick = () => { d.skip.clear(); drawProds(); refreshPay(); };
     $('#lpNone').onclick = () => { items.forEach(i => d.skip.add(i.code)); drawProds(); refreshPay(); };
   };
-  const due = () => { const t = totalNow(); return d.labels === true && t > 0 ? Math.max(0, Math.round((t - (paidAlready ? (ex.fee || 0) : 0)) * 100) / 100) : 0; };
+  const due = () => { const t = totalNow(); return d.labels && t > 0 ? Math.max(0, Math.round((t - (paidAlready ? (ex.fee || 0) : 0)) * 100) / 100) : 0; };
   const refreshPay = () => {
     const el = $('#labPay'); if (!el) return;
     if (!due()) { el.innerHTML = ''; $('#labSave').textContent = 'Save my details'; return; }
     el.innerHTML = fuanPayCard().replace('Pay to place your order', 'Pay for your labels').replace('Your order is only placed with your payment.', 'Labels are added once your payment is sent.');
     $('#payamt').textContent = fmt(due()); bindFuanPay(); $('#labSave').textContent = 'Pay & save';
   };
-  $('#labYN').onclick = ev => { const b = ev.target.closest('[data-v]'); if (!b) return; d.labels = b.dataset.v === '1'; if (d.labels && !L.touched && !(ex && ex.labels)) { items.forEach(i => d.skip.add(i.code)); } L.touched = true; document.querySelectorAll('#labYN .opt').forEach(x => x.setAttribute('aria-pressed', String(x === b))); drawProds(); refreshPay(); };
   $('#labReg').onclick = ev => { const b = ev.target.closest('[data-r]'); if (!b) return; d.region = b.dataset.r; document.querySelectorAll('#labReg .opt').forEach(x => x.setAttribute('aria-pressed', String(x === b))); };
   const prog = () => { const n = ADDR_KEYS.filter(k => (k === 'zp' ? /^\d{4}$/.test(d.a.zp.trim()) : d.a[k].trim().length >= 2)).length, el = $('#labProg'); if (el) { el.textContent = n + ' of 5 complete'; el.classList.toggle('ok', n === 5); } };
   ADDR_KEYS.forEach(k => { $('#lad_' + k).oninput = ev => { if (k === 'zp') ev.target.value = ev.target.value.replace(/\D/g, '').slice(0, 4); d.a[k] = ev.target.value; prog(); }; });
@@ -1763,7 +1760,6 @@ function labView() {
   $('#labSave').onclick = async () => {
     const err = $('#err'), fail = m => { err.innerHTML = '<div class="alert err" role="alert">' + esc(m) + '</div>'; err.scrollIntoView({behavior: 'smooth', block: 'center'}); };
     err.innerHTML = '';
-    if (d.labels === null) return fail('Choose whether you want vial labels: Yes or No.');
     if (!d.region) return fail('Pick your region: Luzon, Visayas or Mindanao.');
     if (d.a.st.trim().length < 3) return fail('Enter your house or unit number and street.');
     if (d.a.br.trim().length < 2) return fail('Enter your barangay.');
@@ -1772,8 +1768,7 @@ function labView() {
     if (!/^\d{4}$/.test(d.a.zp.trim())) return fail('Enter the 4-digit ZIP code.');
     if (d.email.trim() && !/^\S+@\S+\.\S+$/.test(d.email.trim())) return fail('That email does not look right. Fix it or leave it empty.');
     const need = due(); if (need && !(S.fp && S.fp.img)) { fail('Upload your payment screenshot to add labels.'); const pl = $('#pfl'); if (pl) pl.scrollIntoView({behavior: 'smooth', block: 'center'}); return; }
-    if (d.labels === true && labVials() <= 0) return fail('Tick at least one product to put labels on, or choose No labels.');
-    const payload = {ref: o.ref, phone: L.phone, labels: d.labels, skip: [...d.skip], region: d.region, address: addrJoin(d.a), email: d.email.trim()};
+    const payload = {ref: o.ref, phone: L.phone, labels: labVials() > 0, skip: [...d.skip], region: d.region, address: addrJoin(d.a), email: d.email.trim()};
     if (need) payload.proof = {image: proofJpeg(drawProof({kind: 'ORDER', ref: 'MAMMOTH LABELS · ' + o.ref, amount: String(need), img: S.fp.img}, Date.now() + (S.fp.off || 0)))};
     const btn = $('#labSave'); btn.disabled = true; btn.textContent = need ? 'Sending payment…' : 'Saving…';
     try { const r = await call('labelSubmit', payload); L.done = r.label; o.label = r.label; if (S.fp) S.fp.img = null; labView(); window.scrollTo(0, 0); toast('Saved. Thank you!'); }
