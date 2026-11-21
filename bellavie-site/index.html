@@ -890,6 +890,37 @@ body:has(.cartbar) #list{padding-bottom:150px}
 .lp input:focus-visible+.lpbox{outline:3px solid rgba(177,58,100,.4);outline-offset:2px}
 .lptx{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.3}
 .lppr{flex:none;font-weight:800;color:var(--berry-d)}
+
+.mcgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+.mcard{background:#fff;border:1.5px solid #f3d3df;border-radius:14px;padding:8px;box-shadow:0 6px 14px -10px rgba(194,71,122,.5)}
+.mcard.hot{border-color:#d9a32b;box-shadow:0 0 0 2px rgba(217,163,43,.25)}.mcard.win{border-color:#2f8f6f;background:#f2fbf6;box-shadow:0 0 0 2px rgba(47,143,111,.25)}
+.mch{display:flex;justify-content:space-between;gap:6px;align-items:baseline;font-size:12px;margin-bottom:5px}.mch b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}.mch span{flex:none;font-weight:800;color:var(--rose,#c2477a);font-size:11px}
+.mcb{display:grid;grid-template-columns:repeat(5,1fr);gap:2px}
+.mcb i{font-style:normal;aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:700;border-radius:4px;background:#fff8fa;border:1px solid #f6dce5;color:#5b3446}
+.mcb i.on{background:linear-gradient(145deg,#e27b9b,#b13a64);color:#fff;border-color:#b13a64}.mcb i.nw{outline:2px solid #d9a32b}
+.mcf{margin-top:5px;font-size:10.5px;color:#8a6a78;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.bc{cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none}.bc.free{cursor:default}
+.bc.hit{background:#fff3cf;border-color:#d9a32b;color:#7a4a00;animation:bhit 1.1s ease-in-out infinite;z-index:1}
+.bc.hit::before{content:'TAP';position:absolute;top:-7px;left:50%;transform:translateX(-50%);background:#d9a32b;color:#fff;font-size:9px;font-weight:900;letter-spacing:.06em;padding:1px 5px;border-radius:99px}
+@keyframes bhit{0%,100%{box-shadow:0 0 0 0 rgba(217,163,43,.55);transform:scale(1)}50%{box-shadow:0 0 0 7px rgba(217,163,43,0);transform:scale(1.07)}}
+.bc.shake{animation:bshake .35s}@keyframes bshake{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+.bhint{margin:10px auto 0;max-width:340px;text-align:center;font-size:14px;color:#6e3a50;background:#fff8fa;border:1.5px dashed #f3b6cb;border-radius:14px;padding:8px 12px}
+.bhint.go{background:#fff3cf;border-color:#d9a32b;color:#5e3b00;font-weight:600}
+@media (prefers-reduced-motion:reduce){.bc.hit,.bc.shake{animation:none}}
+
+.bwinov{position:fixed;inset:0;z-index:9998;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(70,20,45,.62);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);animation:bwfade .3s}
+.bwinbox{width:min(440px,100%);text-align:center;background:linear-gradient(180deg,#fffaf5,#ffeaf1);border:3px solid #d9b45f;border-radius:28px;padding:26px 20px 22px;box-shadow:0 0 0 6px rgba(255,255,255,.5),0 24px 60px -10px rgba(120,20,60,.6);animation:bwpop .7s cubic-bezier(.2,1.4,.3,1)}
+.bwint{font-family:'Playfair Display',Georgia,serif;font-style:italic;font-weight:700;font-size:clamp(58px,19vw,92px);line-height:1;background:linear-gradient(90deg,#c2477a,#7a63c9,#d9a32b,#c2477a);background-size:200% auto;-webkit-background-clip:text;background-clip:text;color:transparent;animation:bwsheen 2.4s linear infinite}
+.bwinl{margin-top:6px;font-weight:900;letter-spacing:.3em;text-transform:uppercase;font-size:15px;color:#8f2a50}
+.bwinn{margin-top:8px;font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:clamp(24px,7vw,34px);color:#3a1f2b;overflow-wrap:anywhere}
+.bwinp{display:inline-block;margin-top:10px;background:#fff;border:1.5px solid #e8cf86;border-radius:99px;padding:6px 14px;font-weight:800;color:#6b4a00}
+.bwinm{margin:12px 6px 14px;color:#5b3446;font-size:15px;line-height:1.4}
+.vrain{position:fixed;inset:0;z-index:10000;pointer-events:none;overflow:hidden}
+.vr{position:absolute;top:-70px;will-change:transform;animation-name:vfall;animation-timing-function:linear;animation-fill-mode:both}
+@keyframes vfall{0%{transform:translate(0,0) rotate(0)}100%{transform:translate(var(--dx),115vh) rotate(var(--r))}}
+@keyframes bwpop{0%{transform:scale(.4);opacity:0}100%{transform:scale(1);opacity:1}}@keyframes bwfade{from{opacity:0}to{opacity:1}}@keyframes bwsheen{to{background-position:200% center}}
+@media (prefers-reduced-motion:reduce){.bwinbox,.bwint,.bwinov{animation:none}}
 </style>
 </head>
 <body>
@@ -1329,7 +1360,8 @@ async function resumeCart(form, cart) {
   const open = S.cfg.forms[form] && S.cfg.forms[form].open;
   if (!open) { toast('That group buy is closed now'); return; }
   await startForm(form, cart);
-  toast('Your cart is back. Review it whenever you are ready');
+  const want = (cart.items || []).length, got = form === 'YIXING' ? Object.keys(S.yix.cart).length : Object.keys(S.cart).length;
+  toast(!got ? 'Those items are not available anymore. Please choose again' : got < want ? 'Your cart is back. Some items are no longer available' : 'Your cart is back. Review it whenever you are ready');
 }
 function applyCartTo(form, cart) {
   const d = cart.draft || {};
@@ -1386,8 +1418,8 @@ function findCartModal() {
       store.set('blvc_phone', $('#fc_p').value.trim());
       $('#fc_r').innerHTML = r.carts.length ? r.carts.map((c, i) => '<div class="cartrow"><div class="grow"><b>' + esc(cartTitle(c.form)) + '</b><div class="muted small">' + c.items.length + ' item' + (c.items.length === 1 ? '' : 's') + ' · ' + fmt(c.subtotal) + '</div></div>' + (c.formOpen ? '<button class="btn sm" data-fc="' + i + '">Resume</button>' : '<span class="pill closed">Closed</span>') + '</div>').join('') : '<div class="alert warn">No saved cart for that number. Saved carts clear after ' + (S.cfg.cartDays || 3) + ' days.</div>';
       $('#fc_r').querySelectorAll('[data-fc]').forEach(b => b.onclick = () => {
-        const c = r.carts[+b.dataset.fc]; closeModal();
-        resumeCart(c.form, {items: c.items.map(i => ({code: i.code, unit: i.unit, qty: i.qty})), draft: {name: c.name, phone: $('#fc_p').value.trim(), region: c.region || ''}});
+        const c = r.carts[+b.dataset.fc], ph = ($('#fc_p') ? $('#fc_p').value : store.get('blvc_phone', '')).trim(); closeModal();
+        resumeCart(c.form, {items: c.items.map(i => ({code: i.code, unit: i.unit, qty: i.qty})), draft: {name: c.name, phone: ph, region: c.region || ''}});
       });
     } catch (e) { $('#fc_r').innerHTML = '<div class="alert err" role="alert">' + esc(e.message) + '</div>'; }
     btn.disabled = false; btn.textContent = 'Find';
@@ -1527,6 +1559,8 @@ function bingoState(g) {
 }
 function bingoInner(g, Bx) {
   const B = Bx || bingoState(g), drawn = g.drawn || [], d = new Set(drawn), mineP = String(B.phone || '').replace(/\D/g, '').slice(-4);
+  if (!B.marks) { let a = []; if (g.id !== 'DEMO') { try { a = JSON.parse(store.get('blvc_bmarks_' + g.id, '[]')) || []; } catch (e) {} } B.marks = new Set(a); }
+  const M = B.marks, hits = B.card ? B.card.filter(n => n && d.has(n) && !M.has(n)) : [];
   const won = !!(B.card && mineP && (g.winners || []).some(w => w.p === mineP));
   const pill = g.status === 'done' ? 'Game over' : g.status === 'paused' ? 'We have a winner!' : 'Live now';
   const recent = drawn.slice(0, -1).slice(-8).reverse();
@@ -1535,25 +1569,74 @@ function bingoInner(g, Bx) {
   if (B.card) {
     const away = bingoAway(B.card, drawn, g.pattern);
     mid = '<div class="bcardw"><div class="bcard" role="grid" aria-label="Your bingo card">' + BLET.split('').map((l, i) => '<div class="bh" style="background:' + BCOL[i] + '" role="columnheader">' + l + '</div>').join('') +
-      B.card.map(n => '<div class="bc' + (n === 0 || d.has(n) ? ' on' : '') + (n === 0 ? ' free' : '') + (n && n === g.last ? ' new' : '') + '" role="gridcell" aria-label="' + (n === 0 ? 'Free space' : n + (d.has(n) ? ', called' : '')) + '">' + (n === 0 ? '♥' : n) + '</div>').join('') + '</div>' +
+      B.card.map(n => '<div class="bc' + (n === 0 || M.has(n) ? ' on' : '') + (n === 0 ? ' free' : '') + (n && d.has(n) && !M.has(n) ? ' hit' : '') + (n && n === g.last ? ' new' : '') + '" data-n="' + n + '" tabindex="' + (n ? 0 : -1) + '" role="gridcell" aria-label="' + (n === 0 ? 'Free space' : n + (M.has(n) ? ', marked' : d.has(n) ? ', called. Tap to mark' : '')) + '">' + (n === 0 ? '♥' : n) + '</div>').join('') + '</div>' +
+      (won || g.status === 'done' || g.status === 'paused' ? '' : '<div class="bhint' + (hits.length ? ' go' : '') + '">' + (hits.length ? '👆 ' + (hits.length === 1 ? '<b>' + hits[0] + '</b> is on your card! Tap it to mark.' : '<b>' + hits.length + ' called numbers</b> are on your card. Tap the glowing ones.') : (g.last ? 'Not on your card this time. Tap numbers as they are called.' : 'Tap your numbers as they are called.')) + '</div>') +
       (won ? '' : '<div class="baway">' + (g.status === 'done' ? 'Thank you for playing 💗' : away <= 0 ? 'BINGO!' : away === 1 ? 'Only 1 number away!' : away + ' numbers to go') + '</div>') + '</div>' +
       (won ? '<div class="bwon">🏆 BINGO! You won' + (g.prize ? ': ' + esc(g.prize) : '') + '<br><small>We will message you on WhatsApp.</small></div>' : '');
   } else if (g.status === 'done') mid = '<p class="bhow">This game is over. Watch for the next one 💗</p>';
   else if (!g.joinOpen) mid = '<p class="bhow">Cards are closed for this game.</p>';
-  else mid = '<div class="bjoin"><p class="small muted" style="margin:0 0 6px;text-align:center">Use a reference number from one of your orders and the WhatsApp number you ordered with' + (g.elig === 'paid' ? ' (the order must be paid)' : '') + '. One card per WhatsApp number.' + (S.cfg.adminWhatsapp ? ' No order yet? <a href="https://api.whatsapp.com/send?phone=' + esc(S.cfg.adminWhatsapp) + '&text=' + encodeURIComponent('Hi! Can I get a bingo reference number for ' + g.title + '?') + '" target="_blank" rel="noopener">Ask us for one</a>.' : '') + '</p><div class="two"><input class="in" id="bgn" placeholder="Your name" autocomplete="name" value="' + esc(B.name) + '"><input class="in" id="bgp" type="tel" inputmode="tel" placeholder="WhatsApp 09XXXXXXXXX" autocomplete="tel" value="' + esc(B.phone) + '"></div><input class="in" id="bgr" style="margin-top:8px" placeholder="Reference number (like BLVC-… or BNG-…)" autocapitalize="characters" autocomplete="off" value="' + esc(B.ref || '') + '"><div id="bgerr"></div><button class="btn" id="bgGo" style="margin-top:10px">Get my bingo card</button></div>';
+  else mid = '<div class="bjoin"><p class="small muted" style="margin:0 0 6px;text-align:center">Type your <b>WhatsApp number</b> or a <b>reference number</b> from one of your orders' + (g.elig === 'paid' ? ' (the order must be paid)' : '') + '. One card per WhatsApp number.' + (S.cfg.adminWhatsapp ? ' No order yet? <a href="https://api.whatsapp.com/send?phone=' + esc(S.cfg.adminWhatsapp) + '&text=' + encodeURIComponent('Hi! Can I get a bingo reference number for ' + g.title + '?') + '" target="_blank" rel="noopener">Ask us for one</a>.' : '') + '</p><input class="in" id="bgp" inputmode="text" placeholder="WhatsApp number or order reference" autocapitalize="characters" autocomplete="off" aria-label="WhatsApp number or order reference number" value="' + esc(B.phone || B.ref || '') + '"><input class="in" id="bgn" style="margin-top:8px" placeholder="Your name (only if we ask)" autocomplete="name" value="' + esc(B.name) + '"><div id="bgerr"></div><button class="btn" id="bgGo" style="margin-top:10px">Get my bingo card</button></div>';
   return '<div class="ph"><span class="pill new">' + pill + '</span><h2>' + esc(g.title) + '</h2>' + (g.prize ? '<span class="prize">🎁 Prize: ' + esc(g.prize) + '</span>' : '') + '<span class="ptn">' + (bPat[g.pattern] || bPat.line) + '</span></div>' +
     '<div class="bballs">' + ball + (recent.length ? '<div class="brecent" aria-label="Earlier numbers">' + recent.map(n => bBall(n, 'sm')).join('') + '</div>' : '') + '<div class="bcount">' + drawn.length + ' of 75 called · ' + (g.players || 0) + (g.players === 1 ? ' player' : ' players') + '</div></div>' +
     mid + ((g.winners || []).length ? '<div class="bwins"><b>Winners</b>' + g.winners.map(w => '<span class="bwin">🏆 ' + esc(w.name) + ' <small>draw ' + w.n + '</small></span>').join('') + '</div>' : '') +
-    '<p class="bhow">Numbers are called by Bellavié and your card marks itself. Come back to see new numbers.</p>';
+    (g.status === 'paused' ? '<p class="bhow" style="font-weight:700;color:#8f2a50">🏆 We have a winner! The game is paused. Please wait for Bellavié to start the next game.</p>' : '<p class="bhow">Numbers are called by Bellavié. When one is on your card it glows, so tap it to mark it. Winners are found automatically.</p>');
 }
 function bingoHtml() { const g = S.cfg.bingo; if (!g) return ''; return '<section class="bgx rv" id="bgx" data-gid="' + esc(g.id) + '">' + bingoInner(g) + '</section>'; }
 function bgRender() { const root = $('#bgx'), g = S.cfg.bingo; if (!root || !g) return; root.innerHTML = bingoInner(g); bgBind(); }
+
+
+/* ---------- BINGO! winner pop-up with a rain of vials */
+const VCOL = ['#e27b9b', '#b13a64', '#8f78e0', '#4fb897', '#f2b640', '#5aa0e0'];
+function vialSvg(w, c) { return '<svg width="' + w + '" height="' + Math.round(w * 1.66) + '" viewBox="0 0 24 40" aria-hidden="true"><rect x="8" y="1" width="8" height="5" rx="1.5" fill="' + c + '"/><rect x="7" y="6" width="10" height="4" rx="1" fill="#d9dde3"/><path d="M8 10h8v22a3 3 0 0 1-3 3h-2a3 3 0 0 1-3-3z" fill="#fff" fill-opacity=".92" stroke="' + c + '" stroke-width="1.4"/><path d="M8 21h8v11a3 3 0 0 1-3 3h-2a3 3 0 0 1-3-3z" fill="' + c + '"/><rect x="9.5" y="12.5" width="5" height="5" rx="1" fill="#fff" stroke="' + c + '" stroke-width=".8"/></svg>'; }
+function vialRain() {
+  if (REDUCED()) return; document.querySelectorAll('.vrain').forEach(x => x.remove());
+  const lay = document.createElement('div'); lay.className = 'vrain'; lay.setAttribute('aria-hidden', 'true'); let h = '';
+  for (let k = 0; k < 46; k++) {
+    const w = 18 + Math.random() * 22, dur = 3.2 + Math.random() * 3.2, del = Math.random() * 2.6;
+    h += '<span class="vr" style="left:' + (Math.random() * 100).toFixed(1) + '%;animation-duration:' + dur.toFixed(2) + 's;animation-delay:' + del.toFixed(2) + 's;--dx:' + Math.round(Math.random() * 120 - 60) + 'px;--r:' + Math.round(Math.random() * 720 - 360) + 'deg">' + vialSvg(w, VCOL[k % VCOL.length]) + '</span>';
+  }
+  lay.innerHTML = h; document.body.appendChild(lay); setTimeout(() => lay.remove(), 9500);
+}
+function showBingoWin(o) {
+  document.querySelectorAll('.bwinov').forEach(x => x.remove());
+  const ov = document.createElement('div'); ov.className = 'bwinov'; ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-modal', 'true'); ov.setAttribute('aria-label', 'Bingo winner');
+  const names = o.names.map(esc).join(' &amp; ');
+  ov.innerHTML = '<div class="bwinbox"><div class="bwint">BINGO!</div><div class="bwinl">' + (o.me ? 'You won!' : o.names.length > 1 ? 'Winners' : 'Winner') + '</div><div class="bwinn">' + names + '</div>' +
+    (o.prize ? '<div class="bwinp">🎁 ' + esc(o.prize) + '</div>' : '') +
+    '<p class="bwinm">' + (o.me ? 'We will message you on WhatsApp. 💗' : o.host ? 'The game is paused. Continue, end it, or start a new game below.' : 'The game is paused. Please wait for Bellavié to start the next game.') + '</p><button class="btn" id="bwinx">' + (o.host ? 'Close' : 'OK') + '</button></div>';
+  document.body.appendChild(ov);
+  const close = () => { ov.remove(); document.removeEventListener('keydown', esck); document.querySelectorAll('.vrain').forEach(x => x.remove()); }, esck = e => { if (e.key === 'Escape') close(); };
+  document.addEventListener('keydown', esck); ov.querySelector('#bwinx').onclick = close; ov.addEventListener('click', e => { if (e.target === ov) close(); });
+  try { ov.querySelector('#bwinx').focus(); navigator.vibrate && navigator.vibrate([80, 40, 80, 40, 160]); } catch (e) {}
+  vialRain();
+}
+/* winners nobody on this device has seen yet (shown once each) */
+function bwNew(g) { const w = g.winners || [], seen = Number(store.get('blvc_bwinseen_' + g.id, '0')) || 0; if (w.length <= seen) return []; store.set('blvc_bwinseen_' + g.id, String(w.length)); return w.slice(seen); }
+function bwAnnounce(g) {
+  if (S.view !== 'welcome' || !g || g.status !== 'paused') return; const fresh = bwNew(g); if (!fresh.length) return;
+  const B = bingoState(g), mp = String(B.phone || '').replace(/\D/g, '').slice(-4), me = !!(B.card && mp && fresh.some(w => w.p === mp));
+  showBingoWin({names: me ? [B.name || 'You'] : fresh.map(w => w.name), prize: g.prize, me});
+}
+/* tap a glowing number to mark it. Only numbers that were really called can be marked */
+function bcBind(root, g, B, redraw) {
+  const tap = el => {
+    const n = Number(el.dataset.n); if (!n) return;
+    const d = new Set(g.drawn || []); B.marks = B.marks || new Set();
+    if (B.marks.has(n)) B.marks.delete(n);
+    else if (d.has(n)) { B.marks.add(n); try { navigator.vibrate && navigator.vibrate(25); } catch (e) {} }
+    else { el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); toast(n + ' has not been called yet'); return; }
+    if (g.id !== 'DEMO') store.set('blvc_bmarks_' + g.id, JSON.stringify([...B.marks]));
+    redraw();
+  };
+  root.querySelectorAll('.bc[data-n]').forEach(el => { el.onclick = () => tap(el); el.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tap(el); } }; });
+}
 function bgBind() {
   const root = $('#bgx'), g = S.cfg.bingo; if (!root || !g) return; const B = bingoState(g), gb = $('#bgGo');
-  if (!gb) return;
+  bcBind(root, g, B, bgRender);
+  if (!gb) { if (!S.bwFirst || S.bwFirst !== g.id) { S.bwFirst = g.id; bwAnnounce(g); } return; }
   gb.onclick = async () => {
-    const name = $('#bgn').value.trim(), phone = $('#bgp').value.trim(), ref = $('#bgr').value.trim(); B.name = name; B.phone = phone; B.ref = ref; gb.disabled = true; const t = gb.textContent; gb.textContent = 'Getting your card...';
-    try { const r = await call('bingoJoin', g.id, name, phone, ref); B.card = r.card; store.set('blvc_bingo_' + g.id, JSON.stringify({name, phone})); store.set('blvc_pname', name); store.set('blvc_phone', phone); try { const f = await call('bingoPublic'); if (f) S.cfg.bingo = f; } catch (e) {} bgRender(); burst($('#bgx .bcard')); toast(r.again ? 'Welcome back! Here is your card' : 'Your card is ready. Good luck!'); }
+    const name = $('#bgn').value.trim(), val = $('#bgp').value.trim(), isPh = /^[+\d\s()-]+$/.test(val) && val.replace(/\D/g, '').length >= 7, phone = isPh ? val : '', ref = isPh ? '' : val; B.name = name; B.phone = phone; B.ref = ref; gb.disabled = true; const t = gb.textContent; gb.textContent = 'Getting your card...';
+    try { const r = await call('bingoJoin', g.id, name, phone, ref); B.card = r.card; B.phone = r.phone || phone; B.name = r.name || name; store.set('blvc_bingo_' + g.id, JSON.stringify({name: B.name, phone: B.phone})); store.set('blvc_pname', B.name); store.set('blvc_phone', B.phone); try { const f = await call('bingoPublic'); if (f) S.cfg.bingo = f; } catch (e) {} bgRender(); burst($('#bgx .bcard')); toast(r.again ? 'Welcome back! Here is your card' : 'Your card is ready. Good luck!'); }
     catch (e) { gb.disabled = false; gb.textContent = t; $('#bgerr').innerHTML = '<div class="alert err" role="alert" style="margin-top:8px">' + esc(e.message || 'Could not get your card. Please try again.') + '</div>'; }
   };
 }
@@ -1569,14 +1652,14 @@ async function bgStart() {
       if (!g) { S.cfg.bingo = null; if (root) root.remove(); clearInterval(S.bgT); return; }
       S.cfg.bingo = g; if (!root) return;
       if (!old || old.id !== g.id || old.drawn.length !== g.drawn.length || old.status !== g.status || old.players !== g.players || old.joinOpen !== g.joinOpen || (old.winners || []).length !== (g.winners || []).length) {
-        const n = $('#bgn'), p = $('#bgp'), rf = $('#bgr'); if (n && p) { const B = bingoState(g); B.name = n.value; B.phone = p.value; if (rf) B.ref = rf.value; }
+        const n = $('#bgn'), p = $('#bgp'); if (n && p) { const B = bingoState(g); B.name = n.value; B.phone = p.value; }
         if (old && old.id === g.id && g.last && g.drawn.length > old.drawn.length) S.bgPop = g.last + '_' + g.drawn.length;
         bgRender();
-        const B2 = bingoState(g), mp = String(B2.phone || '').replace(/\D/g, '').slice(-4);
-        if (B2.card && mp && (g.winners || []).some(w => w.p === mp) && !store.get('blvc_bwin_' + g.id, '')) { store.set('blvc_bwin_' + g.id, '1'); burst($('#bgx .bwon') || $('#bgx')); }
+        { const Bn = bingoState(g); if (old && old.id === g.id && g.last && g.drawn.length > old.drawn.length && Bn.card && Bn.card.indexOf(g.last) >= 0 && g.status === 'live') { toast(g.last + ' is on your card! Tap it'); try { navigator.vibrate && navigator.vibrate([40, 30, 40]); } catch (e) {} } }
+        bwAnnounce(g);
       }
     } catch (e) {}
-  }, 8000);
+  }, 5000);
 }
 const pollDone = () => { const p = S.cfg.poll, F = S.cfg.forms || {}; return !!(p && F.MAMMOTH && F.MAMMOTH.open && p.opts.some(o => /mammoth/i.test(o.label))); };
 function pollHtml() { const p = S.cfg.poll; if (!p || pollDone()) return ''; S.poll = S.poll || {sel: null, pc: {}, name: store.get('blvc_pname', ''), phone: store.get('blvc_phone', '')}; return '<section class="pollx rv" id="pollx" data-pid="' + esc(p.id) + '">' + pollInner(p) + '</section>'; }
@@ -1660,7 +1743,7 @@ function welcomeHtml() {
     (S.cfg.customerViewLink ? '<div class="stack" style="margin-top:10px"><a class="btn ghost" href="' + esc(S.cfg.customerViewLink) + '" target="_blank" rel="noopener">' + ICON.box + ' See the live order board</a></div>' : '') +
     (recent.length ? '<p class="small muted" style="margin-top:14px">Your last order: <button class="linkbtn" id="lastBtn">' + esc(recent[0].ref) + '</button></p>' : '') +
     '<div class="talk"><a class="btn soft" href="' + esc(S.cfg.communityLink) + '" target="_blank" rel="noopener">' + ICON.wa + ' Join our WhatsApp community</a></div></div>' +
-  '<footer class="foot"><p>Questions? Chat with us directly.</p><p class="small muted" style="margin:4px 0 0">Site version: Nov 20 · 6:30 PM</p><div class="waline"><a class="btn ghost" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center" target="_blank" rel="noopener" href="' + 'https://api.whatsapp.com/send?phone=' + esc(S.cfg.adminWhatsapp) + '&text=' + encodeURIComponent('Hi ' + S.cfg.businessName + '! I have a question.') + '">Message ' + esc(localNum(S.cfg.adminWhatsapp)) + '</a></div><button class="linkbtn" id="adminLink" style="font-size:13px;opacity:.7">Admin</button></footer>';
+  '<footer class="foot"><p>Questions? Chat with us directly.</p><p class="small muted" style="margin:4px 0 0">Site version: Nov 21 · 12:55 PM</p><div class="waline"><a class="btn ghost" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center" target="_blank" rel="noopener" href="' + 'https://api.whatsapp.com/send?phone=' + esc(S.cfg.adminWhatsapp) + '&text=' + encodeURIComponent('Hi ' + S.cfg.businessName + '! I have a question.') + '">Message ' + esc(localNum(S.cfg.adminWhatsapp)) + '</a></div><button class="linkbtn" id="adminLink" style="font-size:13px;opacity:.7">Admin</button></footer>';
 }
 function bindWelcome() {
   bindLabWelcome(); startCountdowns(); revealOnScroll(); bindRate(); bindPoll(); bgStart(); bindWelcomeFx(); if ($('#goCmp2')) $('#goCmp2').onclick = () => go('compare');
@@ -1831,19 +1914,36 @@ function printWaybills(people, d) {
     closeModal(); setTimeout(() => window.print(), 250);
   };
 }
+
+/* owner-only: supplier cost (Lily, converted at 64.5) against what each Mammoth product sells for */
+function cmpCardHtml(raw, costs, sort) {
+  const rows = (raw.products || []).filter(p => p.form === 'MAMMOTH' && p.active !== false && p.vialPrice > 0).map(p => {
+    const c = costs['MAMMOTH|' + p.code], has = c != null && c !== '' && Number(c) >= 0, cost = has ? Number(c) : 0, pr = p.vialPrice;
+    return {n: p.name, sp: p.spec, cost, has, pr, gp: has ? pr - cost : null, mg: has && pr > 0 ? (pr - cost) / pr * 100 : null};
+  });
+  if (!rows.length) return '';
+  const by = {name: (a, b) => a.n.localeCompare(b.n) || a.sp.localeCompare(b.sp), profit: (a, b) => (b.gp == null ? -1e9 : b.gp) - (a.gp == null ? -1e9 : a.gp), margin: (a, b) => (b.mg == null ? -1e9 : b.mg) - (a.mg == null ? -1e9 : a.mg), low: (a, b) => (a.mg == null ? 1e9 : a.mg) - (b.mg == null ? 1e9 : b.mg)}[sort] || (() => 0);
+  const withC = rows.filter(r => r.has), avg = withC.length ? withC.reduce((a, r) => a + r.mg, 0) / withC.length : 0;
+  const m2 = n => '₱' + (Math.round(n * 100) / 100).toLocaleString('en-PH', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  const opt = (v, t) => '<option value="' + v + '"' + (sort === v ? ' selected' : '') + '>' + t + '</option>';
+  return '<div class="card" style="padding:16px"><div class="row spread" style="gap:8px"><h3 class="h-md" style="margin:0">Cost vs selling price</h3><select class="in" id="cmpSort" style="width:auto;padding:6px 8px;font-size:13px" aria-label="Sort">' + opt('name', 'A to Z') + opt('profit', 'Most profit') + opt('margin', 'Best margin') + opt('low', 'Lowest margin') + '</select></div>' +
+    '<p class="hint" style="margin:4px 0 8px">Per vial. Cost is the supplier price at ₱64.5 per $1; the price is what customers pay. Only you see this. ' + withC.length + ' of ' + rows.length + ' products have a cost' + (withC.length ? ', average margin ' + avg.toFixed(0) + '%' : '') + '.</p>' +
+    '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="text-align:right;color:var(--muted,#8a6a78)"><th style="text-align:left;padding:4px 6px 4px 0">Product</th><th style="padding:4px 6px">Cost</th><th style="padding:4px 6px">Sells</th><th style="padding:4px 6px">Profit</th><th style="padding:4px 0 4px 6px">Margin</th></tr></thead><tbody>' +
+    rows.sort(by).map(r => '<tr style="border-top:1px solid var(--line,#f0cfdb);text-align:right"><td style="text-align:left;padding:6px 6px 6px 0"><b>' + esc(r.n) + '</b><br><span class="muted small">' + esc(r.sp) + '</span></td><td class="num" style="padding:6px">' + (r.has ? m2(r.cost) : '<span class="muted">-</span>') + '</td><td class="num" style="padding:6px">' + m2(r.pr) + '</td><td class="num" style="padding:6px;font-weight:700;color:' + (r.gp == null ? 'inherit' : r.gp < 0 ? '#b3261e' : '#2f7d5d') + '">' + (r.gp == null ? '-' : m2(r.gp)) + '</td><td class="num" style="padding:6px 0 6px 6px">' + (r.mg == null ? '-' : r.mg.toFixed(0) + '%') + '</td></tr>').join('') + '</tbody></table></div></div>';
+}
 /* ---- Invoices: one document per customer. It lists orders from any group buy (existing or made right here) plus things sold outside the pricelist, with address and payment details. */
 const invPh = p => { const d = String(p || '').replace(/\D/g, ''); return d.startsWith('0') ? '63' + d.slice(1) : d; };
 const invDate = iso => { try { return new Date(iso || Date.now()).toLocaleDateString('en-PH', {day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Manila'}); } catch (e) { return ''; } };
 const invUnit = it => (it.unit ? it.unit.toLowerCase() : 'vial') + (it.qty === 1 ? '' : 's');
 const R2 = x => Math.round((Number(x) || 0) * 100) / 100;
 function invFind(ref) { const r = A.raw; return (r.orders || []).find(x => x.ref === ref) || (r.yix || []).find(x => x.ref === ref) || null; }
-function invPaidOf(o) { return typeof o.paid === 'number' ? o.paid : (o.pay === 'Paid' ? o.total : 0); }
+function invPaidOf(o) { return typeof o.paid === 'number' ? o.paid : (o.pay === 'Paid' ? (o.total || 0) + (o.labFee || 0) : 0); }
 /* turn a saved invoice (or a quick one for a single order) into everything the sheet shows */
 function invModel(rec, drafts) {
   const orders = (rec.refs || []).map(invFind).filter(Boolean).concat(drafts || []);
   const custom = (rec.custom || []).map(x => ({desc: x.desc, qty: x.qty, price: x.price, total: R2(x.qty * x.price)}));
   const customSub = R2(custom.reduce((a, x) => a + x.total, 0));
-  const pk = R2(rec.pk), sh = R2(rec.sh), total = R2(orders.reduce((a, o) => a + (o.total || 0), 0) + customSub + pk + sh);
+  const pk = R2(rec.pk), sh = R2(rec.sh), total = R2(orders.reduce((a, o) => a + (o.total || 0) + (o.labFee || 0), 0) + customSub + pk + sh);
   const first = orders[0] || {}, yo = orders.find(o => o.address) || {};
   const paidOrders = R2(orders.reduce((a, o) => a + invPaidOf(o), 0));
   const paid = rec.paid ? total : Math.min(total, paidOrders);
@@ -1853,6 +1953,7 @@ function invModel(rec, drafts) {
 const invOrderLines = o => {
   const L = [['Items subtotal', o.subtotal]];
   if (o.labelFee > 0) L.push(['Vial labels & numbers', o.labelFee]);
+  else if (o.labFee > 0) L.push(['Vial labels & numbers' + (o.labVials ? ' (' + o.labVials + ')' : ''), o.labFee]);
   L.push(['Packaging fee', o.packaging || 0]);
   L.push(['Shipping' + (o.region ? ' (' + (o.shipOpt && o.shipOpt !== 'Standard' ? 'combined' : o.region) + ')' : ''), o.shipping || 0]);
   return L.filter(l => l[1] || l[0] === 'Items subtotal');
@@ -1868,7 +1969,7 @@ function invText(m, d, pay) {
     o.items.forEach(it => L.push('• ' + it.name + ' ' + (it.spec || '') + ' — ' + it.qty + ' ' + invUnit(it) + ' × ' + fmt(it.price) + ' = ' + fmt(it.total)));
     invOrderLines(o).forEach(l => L.push(l[0] + ': ' + fmt(l[1])));
     (o.voucher ? (o.voucher.list || [o.voucher]) : []).forEach(v => L.push('Voucher ' + v.code + ': −' + fmt(v.amount)));
-    if (m.multi) L.push('Order total: ' + fmt(o.total));
+    if (m.multi) L.push('Order total: ' + fmt((o.total || 0) + (o.labFee || 0)));
     L.push('');
   });
   if (m.custom.length || m.pk || m.sh) {
@@ -1892,7 +1993,7 @@ function invSheetHtml(m, d, pay) {
   const secs = m.orders.map(o => (m.multi ? '<div class="sh">' + esc(o.formTitle || 'Order') + (o.ref ? ' <span class="im">· ' + esc(o.ref) + '</span>' : '') + '</div>' : '') +
     '<table>' + head + '<tbody>' + trs(o) + '</tbody></table>' +
     invOrderLines(o).map(l => row(l[0], fmt(l[1]))).join('') + (o.voucher ? (o.voucher.list || [o.voucher]).map(v => row('Voucher ' + v.code, '− ' + fmt(v.amount), 'g')).join('') : '') +
-    (m.multi ? row('Order total', fmt(o.total), 'sub') : '')).join('');
+    (m.multi ? row('Order total', fmt((o.total || 0) + (o.labFee || 0)), 'sub') : '')).join('');
   const cust = (m.custom.length ? (m.multi ? '<div class="sh">Other items</div>' : '') + '<table>' + head + '<tbody>' + m.custom.map(x => '<tr><td><b>' + esc(x.desc) + '</b></td><td class="r">' + x.qty + '</td><td class="r">' + fmt(x.price) + '</td><td class="r"><b>' + fmt(x.total) + '</b></td></tr>').join('') + '</tbody></table>' : (m.pk || m.sh) && m.multi ? '<div class="sh">Other items</div>' : '') + (m.pk ? row('Packaging fee', fmt(m.pk)) : '') + (m.sh ? row('Shipping fee', fmt(m.sh)) : '');
   const payBlock = m.due > 0 && pay && (pay.qr || pay.details) ? '<div class="pay"><div class="sh" style="margin-top:0">How to pay</div><div class="payrow">' + (pay.qr ? '<img src="' + esc(pay.qr) + '" alt="Payment QR code">' : '') + (pay.details ? '<div class="im" style="white-space:pre-line;color:#2a1620;flex:1;min-width:0">' + esc(pay.details) + '</div>' : '') + '</div></div>'
     : (m.due > 0 && d.pub.paymentNote ? '<div class="im" style="margin-top:10px;border-top:1px dashed #f0cfdb;padding-top:8px">' + esc(d.pub.paymentNote) + '</div>' : '');
@@ -2599,9 +2700,10 @@ function receiptHtml(o) {
     '<div class="divider"></div>' +
     '<div class="line"><span>Items subtotal</span><span class="num">' + fmt(o.subtotal) + '</span></div>' +
     '<div class="line"><span>Packaging fee</span><span class="num">' + fmt(o.packaging) + '</span></div>' +
+    (o.labFee > 0 ? '<div class="line"><span>Vial labels &amp; numbers' + (o.labVials ? ' (' + o.labVials + ' vial' + (o.labVials === 1 ? '' : 's') + ')' : '') + '</span><span class="num">' + fmt(o.labFee) + '</span></div>' : '') +
     '<div class="line"><span>Shipping</span><span class="num">' + (o.form === 'MAMMOTH' && !o.shipping && !(S.cfg.mm && S.cfg.mm.shipNow) ? 'not charged yet' : fmt(o.shipping)) + '</span></div>' +
     (o.voucher ? (o.voucher.list || [o.voucher]).map(x => vchLine(x.code, x.amount)).join('') : '') +
-    '<div class="line total"><span>Total</span><span class="num">' + fmt(o.total) + '</span></div>' +
+    '<div class="line total"><span>Total</span><span class="num">' + fmt(o.total + (o.labFee || 0)) + '</span></div>' +
     '<div class="center" style="margin-top:10px"><span class="tag plain">Payment: ' + esc(o.pay) + '</span><span class="tag plain">' + esc(o.status) + '</span></div>' +
     (o.note ? '<p class="small muted" style="margin-top:12px">Note: ' + esc(o.note) + '</p>' : '') + '</div>';
 }
@@ -2978,13 +3080,24 @@ function bgPracticeOpen(o) {
   const paint = won => {
     root.innerHTML = '<div class="alert ok" style="margin:10px 0">Practice mode. Nothing here is saved, and customers never see it.</div><div class="bgx" style="margin-top:0">' + bingoInner(P.g, P.B) + '</div>' +
       '<div class="stack" style="margin-top:10px">' + (won ? '' : '<button class="btn" id="bpd">Draw the next number</button><button class="btn soft" id="bpa">' + (P.T ? 'Pause' : 'Play until my card wins') + '</button>') + '<button class="btn soft" id="bpr">New card and start over</button><button class="btn ghost" id="bpx">Close practice</button></div>';
-    if (won) burst(root.querySelector('.bwon'));
+    if (won) { burst(root.querySelector('.bwon')); showBingoWin({names: ['You (practice)'], prize: P.g.prize, me: true}); }
+    bcBind(root, P.g, P.B, () => paint(P.g.status === 'paused'));
     if ($('#bpd')) $('#bpd').onclick = () => { stop(); draw(); };
     if ($('#bpa')) $('#bpa').onclick = () => { if (P.T) { stop(); paint(false); } else { P.T = setInterval(draw, REDUCED() ? 150 : 700); paint(false); } };
-    $('#bpr').onclick = () => { stop(); P.g.drawn = []; P.g.last = 0; P.g.winners = []; P.g.status = 'live'; P.B.card = bgGenLocal(); paint(false); };
+    $('#bpr').onclick = () => { stop(); P.g.drawn = []; P.g.last = 0; P.g.winners = []; P.g.status = 'live'; P.B.card = bgGenLocal(); P.B.marks = new Set(); paint(false); };
     $('#bpx').onclick = () => { stop(); root.innerHTML = ''; };
   };
   paint(false); root.scrollIntoView({behavior: REDUCED() ? 'auto' : 'smooth', block: 'start'});
+}
+
+/* host view: every player's card, marked from the numbers called, closest to winning first */
+function bgCardsHtml(g) {
+  const list = (g && g.list) || [], d = new Set((g && g.drawn) || []), last = g ? g.last : 0;
+  const rows = list.filter(p => p.card && p.card.length === 25).map(p => ({p, away: bingoAway(p.card, g.drawn, g.pattern)})).sort((a, b) => a.away - b.away || a.p.name.localeCompare(b.p.name));
+  return '<div class="sech"><h2>Everyone\'s cards</h2><span>' + rows.length + '</span></div>' + (rows.length ? '<p class="hint" style="margin:0 0 8px">Closest to winning first. Pink squares are numbers you have called. This updates by itself.</p><div class="mcgrid">' + rows.map(({p, away}) => {
+    const win = (g.winners || []).some(w => w.phone === p.phone);
+    return '<div class="mcard' + (win ? ' win' : away <= 1 ? ' hot' : '') + '"><div class="mch"><b>' + esc(p.name) + '</b><span>' + (win ? '🏆 BINGO' : away <= 0 ? 'BINGO!' : away + ' to go') + '</span></div><div class="mcb">' + p.card.map(n => '<i class="' + (n === 0 || d.has(n) ? 'on' : '') + (n && n === last ? ' nw' : '') + '">' + (n === 0 ? '♥' : n) + '</i>').join('') + '</div><div class="mcf">' + esc(localNum(p.phone)) + (p.ref ? ' · ' + esc(p.ref) : '') + '</div></div>';
+  }).join('') + '</div>' : '<div class="card"><p class="muted center" style="padding:10px;margin:0">No cards yet. Players appear here when they join.</p></div>');
 }
 function adminBingo() {
   const g = A.raw.bingo, list = (g && g.list) || [], win = (g && g.winners) || [];
@@ -2992,22 +3105,23 @@ function adminBingo() {
   const st = !g ? '' : g.status === 'done' ? 'Game over' : g.status === 'paused' ? 'Winner! Waiting for you' : 'Live';
   $('#tab').innerHTML =
     '<div class="card"><h2 class="h-md" style="margin-bottom:4px">Try it first</h2><p class="hint" style="margin-top:0">Play a practice round right here with a sample card. Nothing is saved, nothing shows on the welcome page, and no one gets a card.</p><button class="btn soft" id="bgprac0">Open practice mode</button><div id="bgprac"></div></div>' +
-    '<div class="card"><h2 class="h-md" style="margin-bottom:4px">' + (g ? 'Bingo raffle' : 'Make a bingo raffle') + '</h2><p class="hint" style="margin-top:0">Buyers get one card per WhatsApp number on the welcome page. You call the numbers here (or enter the ones you call live) and their cards mark themselves. The winners are found automatically. A raffle with real prizes may need a DTI permit, so please check before running one.</p>' +
+    '<div class="card"><h2 class="h-md" style="margin-bottom:4px">' + (g ? 'Bingo raffle' : 'Make a bingo raffle') + '</h2><p class="hint" style="margin-top:0">Buyers join on the welcome page with their WhatsApp number or an order reference number, and get one card each. You call the numbers here (or enter the ones you call live) and their cards mark themselves. The winners are found automatically. A raffle with real prizes may need a DTI permit, so please check before running one.</p>' +
     '<div class="field"><label class="f" for="bgt">Game name</label><input class="in" id="bgt" maxlength="60" value="' + esc(g ? g.title : 'Bellavié Bingo') + '"></div>' +
     '<div class="field"><label class="f" for="bgpz">Prize (shown to everyone)</label><input class="in" id="bgpz" maxlength="120" value="' + esc(g ? g.prize : '') + '" placeholder="Example: One free vial"></div>' +
     '<label class="f" for="bgpat">Win by</label>' + sel('bgpat', [['line', 'Any row, column or diagonal'], ['corners', 'Four corners'], ['blackout', 'Whole card (blackout)']], g ? g.pattern : 'line') +
-    '<label class="f" for="bgel" style="margin-top:10px">To join, a player needs their WhatsApp number plus a reference number from</label>' + sel('bgel', [['orders', 'Any order reference number'], ['paid', 'Only orders marked Paid']], g && g.elig === 'paid' ? 'paid' : 'orders') +
+    '<label class="f" for="bgel" style="margin-top:10px">A player joins with their WhatsApp number or a reference number from</label>' + sel('bgel', [['orders', 'Any order reference number'], ['paid', 'Only orders marked Paid']], g && g.elig === 'paid' ? 'paid' : 'orders') +
     '<label class="f" for="bgsince" style="margin-top:10px">Only count orders placed since (PH time, optional)</label><input class="in" id="bgsince" type="datetime-local" value="' + esc(manilaLocal(g ? g.since : 0)) + '">' +
     '<label class="switch" style="margin:12px 0 0"><input type="checkbox" id="bgjoin"' + (!g || g.joinOpen ? ' checked' : '') + '><span class="sw"></span><span><b>New players can get a card</b></span></label><div id="bgerr"></div>' +
     '<button class="btn" id="bgsave" style="margin-top:12px">' + (g ? 'Save changes' : 'Publish the game') + '</button>' + (g ? '<button class="btn soft" id="bgfresh" style="margin-top:10px">Start a new game (new cards, new numbers)</button><button class="btn ghost" id="bgclear" style="margin-top:10px">Remove bingo from the welcome page</button>' : '') + '</div>' +
     (g ? '<div class="sech"><h2>Draw numbers</h2><span>' + st + '</span></div><div class="card center">' +
       '<div class="bballs">' + (g.last ? bBall(g.last, 'pop') : '<span class="bwait">No number yet</span>') + '<div class="bcount">' + g.drawn.length + ' of 75 called · ' + g.players + (g.players === 1 ? ' player' : ' players') + '</div></div>' +
-      (g.status === 'live' ? '<button class="btn" id="bgdraw" style="margin-top:6px">Draw the next number</button><div class="two" style="margin-top:10px;align-items:stretch"><input class="in" id="bgnum" type="number" min="1" max="75" inputmode="numeric" placeholder="Number you called (1-75)" aria-label="Number you called"><button class="btn soft" id="bgadd" style="width:auto;padding:0 16px">Add it</button></div>'
+      (g.status === 'live' ? '<button class="btn" id="bgdraw" style="margin-top:6px">Draw the next number</button><label class="switch" style="margin:10px 0 0;justify-content:center"><input type="checkbox" id="bgauto"' + (A.bgAuto ? ' checked' : '') + '><span class="sw"></span><span><b>Draw automatically</b> every <select id="bgsec" style="width:auto;border:0;background:transparent;font-weight:800">' + [6, 10, 15, 20, 30].map(x => '<option value="' + x + '"' + ((A.bgSec || 10) === x ? ' selected' : '') + '>' + x + '</option>').join('') + '</select> seconds</span></label><div class="two" style="margin-top:10px;align-items:stretch"><input class="in" id="bgnum" type="number" min="1" max="75" inputmode="numeric" placeholder="Number you called (1-75)" aria-label="Number you called"><button class="btn soft" id="bgadd" style="width:auto;padding:0 16px">Add it</button></div>'
         : g.status === 'paused' ? '<div class="alert ok" style="margin:6px 0 10px">We have a winner! Keep playing for the next prize, or end the game.</div><button class="btn" id="bgcont">Continue the game</button><button class="btn ghost" id="bgend" style="margin-top:10px">End the game</button>'
         : '<p class="muted" style="margin:8px 0 0">The game is over. Start a new game to play again.</p>') +
       (g.drawn.length ? '<button class="btn ghost sm" id="bgundo" style="margin-top:10px">Undo the last number</button><div class="brecent" style="margin-top:12px">' + g.drawn.map((n, i) => bBall(n, 'sm')).join('') + '</div>' : '') + '</div>' +
       '<div class="sech"><h2>Winners</h2><span>' + win.length + '</span></div><div class="card" style="padding:8px 14px">' + (win.length ? win.map(w => '<div class="vrow" style="display:flex;gap:10px;justify-content:space-between;align-items:center"><span style="min-width:0;overflow-wrap:anywhere"><b>' + esc(w.fullName) + '</b> <span class="muted small">· ' + esc(localNum(w.phone)) + ' · draw ' + w.n + '</span></span><a class="btn soft sm" style="width:auto;padding:6px 10px" target="_blank" rel="noopener" href="https://api.whatsapp.com/send?phone=' + esc(w.phone) + '&text=' + encodeURIComponent('Hi ' + w.fullName.split(' ')[0] + '! You got BINGO in ' + g.title + '! 🎉 ' + (g.prize ? 'Your prize: ' + g.prize + '. ' : '') + 'Please reply here so we can arrange it 💗') + '">WhatsApp</a></span></div>').join('') : '<p class="muted center" style="padding:10px">No winners yet.</p>') + '</div>' +
-      '<div class="sech"><h2>Reference numbers for non-buyers</h2><span>' + ((g.tickets || []).length) + '</span></div><div class="card"><p class="hint" style="margin-top:0">Someone without an order can join with a reference number you make here, plus their WhatsApp number. Leave the number empty to let anyone use it once, or add their WhatsApp number to tie it to one person.</p>' +
+      '<div id="bgCards">' + bgCardsHtml(g) + '</div>' +
+      '<div class="sech"><h2>Reference numbers for non-buyers</h2><span>' + ((g.tickets || []).length) + '</span></div><div class="card"><p class="hint" style="margin-top:0">Someone without an order can join with a reference number you make here and their WhatsApp number. Leave the number empty to let anyone use it once, or add their WhatsApp number to tie it to one person.</p>' +
         '<div class="two"><input class="in" id="bgtl" maxlength="40" placeholder="Note for you (optional)" aria-label="Note"><input class="in" id="bgtp" type="tel" inputmode="tel" placeholder="Their WhatsApp (optional)" aria-label="Their WhatsApp number"></div><div class="two" style="margin-top:8px;align-items:stretch"><input class="in" id="bgtn" type="number" min="1" max="20" value="1" aria-label="How many"><button class="btn" id="bgtgo" style="width:auto;padding:0 16px">Make reference number</button></div><div id="bgterr"></div>' +
         ((g.tickets || []).length ? '<div style="margin-top:8px">' + g.tickets.slice().reverse().map(t => '<div class="vrow" style="display:flex;gap:10px;justify-content:space-between;align-items:center"><span style="min-width:0;overflow-wrap:anywhere"><b>' + esc(t.code) + '</b> <span class="muted small">· ' + (t.used ? 'Used by ' + esc(t.usedName) : 'Not used yet') + (t.label ? ' · ' + esc(t.label) : '') + (t.phone ? ' · ' + esc(localNum(t.phone)) : '') + '</span></span><span style="display:flex;gap:6px;flex:none"><button class="btn soft sm" data-tcopy="' + esc(t.code) + '" style="width:auto;padding:6px 10px">Copy</button>' + (t.used ? '' : '<button class="btn ghost sm" data-tdel="' + esc(t.code) + '" aria-label="Delete ' + esc(t.code) + '" style="width:auto;padding:6px 10px">Delete</button>') + '</span></div>').join('') + '</div>' : '') + '</div>' +
       '<div class="sech"><h2>Players</h2><span>' + list.length + '</span></div><div class="card" style="padding:8px 14px">' + (list.length ? list.slice().reverse().map(p => '<div class="vrow" style="display:flex;gap:10px;justify-content:space-between;align-items:center"><span style="min-width:0;overflow-wrap:anywhere">' + esc(p.name) + ' <span class="muted small">· ' + esc(localNum(p.phone)) + '</span></span><button class="btn ghost sm" data-bdel="' + esc(p.phone) + '" data-bnm="' + esc(p.name) + '" aria-label="Remove ' + esc(p.name) + '" style="width:auto;padding:6px 10px;flex:none">Remove</button></div>').join('') + '<button class="btn soft sm" id="bgcopy" style="margin:10px 0 6px">Copy players (name, number)</button>' : '<p class="muted center" style="padding:10px">No players yet.</p>') + '</div>' : '');
@@ -3018,6 +3132,21 @@ function adminBingo() {
   if ($('#bgfresh')) $('#bgfresh').onclick = async () => { if (await confirmBox('Start a new game?', 'New cards and a clean list of numbers. Everyone can join again. Old cards stay in your Bingo Cards sheet.', 'Start new', 'Cancel')) run('adminBingoSave', 'New game is live', body(), true); };
   if ($('#bgclear')) $('#bgclear').onclick = async () => { if (await confirmBox('Remove bingo?', 'It disappears from the welcome page. Your sheet keeps the cards.', 'Remove it', 'Keep it')) run('adminBingoClear', 'Bingo removed'); };
   if ($('#bgdraw')) $('#bgdraw').onclick = () => run('adminBingoDraw', null, null);
+  clearTimeout(A.bgAutoT); clearInterval(A.bgLiveT);
+  if (g && g.status === 'paused') { A.bgSeen = A.bgSeen || {}; const nw = (g.winners || []).length; if (nw > (A.bgSeen[g.id] || 0)) { const fresh = g.winners.slice(A.bgSeen[g.id] || 0); A.bgSeen[g.id] = nw; showBingoWin({names: fresh.map(w => w.fullName + ' · ' + localNum(w.phone)), prize: g.prize, host: true}); } }
+  if ($('#bgauto')) {
+    $('#bgauto').onchange = () => { A.bgAuto = $('#bgauto').checked; if (A.bgAuto) toast('Drawing every ' + (A.bgSec || 10) + ' seconds'); adminBingo(); };
+    $('#bgsec').onchange = () => { A.bgSec = Number($('#bgsec').value) || 10; adminBingo(); };
+    if (A.bgAuto && g.status === 'live' && g.drawn.length < 75) A.bgAutoT = setTimeout(() => { if (A.tab === 'bingo' && A.bgAuto && $('#bgdraw') && !document.querySelector('.modal')) $('#bgdraw').click(); }, (A.bgSec || 10) * 1000);
+  }
+  if (g) A.bgLiveT = setInterval(async () => {
+    if (A.tab !== 'bingo' || !$('#bgCards') || document.hidden) { if (A.tab !== 'bingo') clearInterval(A.bgLiveT); return; }
+    try {
+      const nb = await call('adminBingoLive', A.token); if (!nb || !A.raw.bingo || nb.id !== A.raw.bingo.id) return;
+      const ob = A.raw.bingo, changed = nb.players !== ob.players || nb.list.length !== ob.list.length || nb.drawn.length !== ob.drawn.length || (nb.winners || []).length !== (ob.winners || []).length;
+      A.raw.bingo = nb; if (changed && $('#bgCards')) $('#bgCards').innerHTML = bgCardsHtml(nb);
+    } catch (e) {}
+  }, 5000);
   if ($('#bgadd')) $('#bgadd').onclick = () => { const n = Number($('#bgnum').value); if (!n) { $('#bgerr').innerHTML = '<div class="alert err" role="alert">Type a number from 1 to 75 first.</div>'; return; } run('adminBingoDraw', null, n); };
   if ($('#bgundo')) $('#bgundo').onclick = () => run('adminBingoUndo', 'Last number removed');
   if ($('#bgcont')) $('#bgcont').onclick = () => run('adminBingoStatus', 'Game continues', 'live');
@@ -3226,6 +3355,7 @@ function adminSales() {
     '<div class="small muted" style="margin-top:4px">' + plist.reduce((a, e) => a + e.v, 0) + ' vials / pieces · items only, packaging and shipping are not counted as sales' + (missing.length ? ' · ' + missing.length + ' without a cost (no profit shown)' : '') + '</div>'
     : '<p class="muted small" style="margin:6px 0 0">Nothing sold in this batch yet. Orders and invoices appear here by themselves.</p>';
   const allProd = {}; raw.orders.concat(raw.yix || []).filter(o => o.status !== 'Removed').forEach(o => (o.items || []).forEach(i => { const key = o.form + '|' + i.code, e = allProd[key] || (allProd[key] = {key, form: o.form, code: i.code, n: i.name, sp: i.spec, v: 0, rev: 0}); e.v += itemVials(i); e.rev += (i.total != null ? i.total : i.qty * i.price); }));
+  (raw.products || []).filter(p => p.form === 'MAMMOTH' && p.active !== false).forEach(p => { const key = 'MAMMOTH|' + p.code; if (!allProd[key]) allProd[key] = {key, form: 'MAMMOTH', code: p.code, n: p.name, sp: p.spec, v: 0, rev: 0}; allProd[key].pr = p.vialPrice || 0; });
   const costList = Object.values(allProd).sort((a, b) => a.n.localeCompare(b.n) || a.form.localeCompare(b.form));
   $('#tab').innerHTML =
     '<div class="card" style="padding:16px"><div class="row spread"><h3 class="h-md" style="margin:0">Sold · ' + esc(scope) + '</h3><button class="btn sm soft" id="ledCopy">' + ICON.copy + ' Copy</button></div><p class="small muted" style="margin:4px 0 10px">Everything sold in this batch, from every group buy and from your invoices.</p>' + ledHtml + '</div>' +
@@ -3249,8 +3379,9 @@ function adminSales() {
     (days.length ? '<div class="card" style="padding:16px"><h3 class="h-md" style="margin-bottom:8px">Sales by day</h3><div class="dbars">' + (mx => days.map(k => '<div class="dcol" title="' + k + ' · ' + money(byD[k]) + '"><i style="height:' + Math.max(4, Math.round(byD[k] / mx * 100)) + '%"></i><span>' + k.slice(8) + '</span></div>').join(''))(Math.max.apply(null, days.map(k => byD[k]))) + '</div><p class="small muted" style="margin:6px 0 0">Last ' + days.length + ' day' + (days.length === 1 ? '' : 's') + ' with orders · day of the month</p></div>' : '') +
     (topC.length ? '<div class="card" style="padding:16px"><h3 class="h-md" style="margin-bottom:8px">Top customers</h3>' + bars(topC.map(c => ({n: c.n, sub: c.o + ' order' + (c.o === 1 ? '' : 's'), v: R(c.s)})), money0, 'var(--gold)') + '</div>' : '') +
     '<div class="card" style="padding:16px"><h3 class="h-md" style="margin-bottom:6px">By group buy</h3>' + (Object.keys(byF).length ? Object.keys(byF).map(k => row(esc(titles[k] || k) + ' <span class="muted small">(' + byF[k].n + ' order' + (byF[k].n === 1 ? '' : 's') + ')</span>', money(byF[k].s) + ' <span class="muted small">collected ' + money(byF[k].c) + '</span>')).join('') : '<p class="muted small">No orders in this view yet.</p>') + '</div>' +
+    cmpCardHtml(raw, costs, A.cmpSort || 'name') +
     '<div class="card" style="padding:16px"><h3 class="h-md" style="margin-bottom:6px">Product costs</h3><p class="hint" style="margin-top:0">What each vial (or piece) costs you. Type it once and every report above uses it. Leave empty if you do not know yet.</p>' +
-      (costList.length ? costList.map(e => '<div class="costrow"><div class="grow"><b>' + esc(e.n) + '</b> <span class="muted small">' + esc(e.sp) + ' · ' + esc(titles[e.form] || e.form) + '</span><div class="muted small">sells at about ' + money(e.v ? e.rev / e.v : 0) + ' each</div></div><input class="in" type="number" step="0.01" min="0" inputmode="decimal" placeholder="₱ cost" data-cost="' + esc(e.key) + '" value="' + (costs[e.key] != null ? costs[e.key] : '') + '"></div>').join('') + '<button class="btn" id="costSave" style="margin-top:12px">Save costs</button>' : '<p class="muted small">Products appear here after the first order.</p>') + '</div>' +
+      (costList.length ? costList.map(e => '<div class="costrow"><div class="grow"><b>' + esc(e.n) + '</b> <span class="muted small">' + esc(e.sp) + ' · ' + esc(titles[e.form] || e.form) + '</span><div class="muted small">sells at about ' + money(e.v ? e.rev / e.v : (e.pr || 0)) + ' each</div></div><input class="in" type="number" step="0.01" min="0" inputmode="decimal" placeholder="₱ cost" data-cost="' + esc(e.key) + '" value="' + (costs[e.key] != null ? costs[e.key] : '') + '"></div>').join('') + '<button class="btn" id="costSave" style="margin-top:12px">Save costs</button>' : '<p class="muted small">Products appear here after the first order.</p>') + '</div>' +
     '<div class="card" style="padding:16px"><div class="row spread"><h3 class="h-md" style="margin:0">Expenses</h3><button class="btn sm soft" id="expAdd2">+ Add</button></div>' + (expView.length ? expView.map(x => '<div class="iline"><span>' + esc(x.category) + '<br><span class="muted small">' + esc(x.note) + ' · ' + phDay(x.date) + '</span></span><span><b class="num">' + money(x.amount) + '</b> <button class="iconbtn sm" data-expdel="' + esc(x.id) + '" aria-label="Delete expense">✕</button></span></div>').join('') : '<p class="muted small" style="margin:8px 0 0">No expenses in this view.</p>') + '</div>' +
     '<details class="card" style="padding:16px"><summary class="h-md" style="cursor:pointer;margin:0">Archive · earlier batches</summary><p class="small muted" style="margin:8px 0">Finished batches are kept here. They do not mix into the batch you are working on.</p>' + bt.map(b => '<div class="iline"><span>' + esc(b.name) + ' <span class="muted small">(' + b.n + ' orders)</span><br><span class="muted small">collected ' + money(b.c) + '</span></span><span><b class="num">' + money(b.s) + '</b> <button class="btn sm ghost" data-vbatch="' + esc(b.id) + '" style="margin-left:6px">View</button></span></div>').join('') + (bt.length > 1 ? row('<b>Total</b>', money(R(bt.reduce((a, b) => a + b.s, 0))), 'tot') : '') + '</details>';
   // ---- actions
@@ -3273,6 +3404,7 @@ function adminSales() {
     $('#ob_ok').onclick = async () => { try { await adminCall('adminSaveSettings', {openingCash: $('#ob_v').value}); closeModal(); adminView(); toast('Opening balance saved'); } catch (e) { $('#ob_e').innerHTML = '<div class="alert err" role="alert">' + esc(e.message) + '</div>'; } };
   };
   document.querySelectorAll('[data-expdel]').forEach(b => b.onclick = async () => { if (!(await confirmBox('Delete this expense?', 'Cash on bank goes back up by that amount.', 'Delete', 'Keep it'))) return; try { await adminCall('adminDeleteExpense', b.dataset.expdel); adminView(); toast('Expense deleted'); } catch (e) {} });
+  if ($('#cmpSort')) $('#cmpSort').onchange = () => { A.cmpSort = $('#cmpSort').value; adminView(); };
   if ($('#costSave')) $('#costSave').onclick = async () => {
     const byKey = {}; costList.forEach(e => byKey[e.key] = e);
     const list = [...document.querySelectorAll('[data-cost]')].map(i => { const e = byKey[i.dataset.cost]; return {key: e.key, form: e.form, name: e.n, spec: e.sp, cost: i.value}; });
