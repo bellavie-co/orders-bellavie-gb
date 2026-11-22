@@ -991,7 +991,7 @@ function call(fn) {
   return fetch(API_URL, {method: 'POST', headers: {'Content-Type': 'text/plain;charset=utf-8'}, body: JSON.stringify({fn: fn, args: args})})
     .then(r => r.json())
     .then(r => { if (r && r.ok) return r.data; throw new Error((r && r.error) || 'Something went wrong. Please try again.'); })
-    .catch(e => { throw new Error(/fetch|network|json/i.test(e.message) ? 'We could not reach the server, so your order was NOT saved yet. Please check your internet and tap the button again (if it keeps happening, try a smaller screenshot).' : e.message); });
+    .catch(e => { throw new Error(/fetch|network|json/i.test(e.message) ? 'The connection was slow and we did not get a reply. Please tap the button once more. We will not create a double order. (If it keeps happening, try a smaller screenshot.)' : e.message); });
 }
 const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
@@ -1743,7 +1743,7 @@ function welcomeHtml() {
     (S.cfg.customerViewLink ? '<div class="stack" style="margin-top:10px"><a class="btn ghost" href="' + esc(S.cfg.customerViewLink) + '" target="_blank" rel="noopener">' + ICON.box + ' See the live order board</a></div>' : '') +
     (recent.length ? '<p class="small muted" style="margin-top:14px">Your last order: <button class="linkbtn" id="lastBtn">' + esc(recent[0].ref) + '</button></p>' : '') +
     '<div class="talk"><a class="btn soft" href="' + esc(S.cfg.communityLink) + '" target="_blank" rel="noopener">' + ICON.wa + ' Join our WhatsApp community</a></div></div>' +
-  '<footer class="foot"><p>Questions? Chat with us directly.</p><p class="small muted" style="margin:4px 0 0">Site version: Nov 21 · 12:55 PM</p><div class="waline"><a class="btn ghost" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center" target="_blank" rel="noopener" href="' + 'https://api.whatsapp.com/send?phone=' + esc(S.cfg.adminWhatsapp) + '&text=' + encodeURIComponent('Hi ' + S.cfg.businessName + '! I have a question.') + '">Message ' + esc(localNum(S.cfg.adminWhatsapp)) + '</a></div><button class="linkbtn" id="adminLink" style="font-size:13px;opacity:.7">Admin</button></footer>';
+  '<footer class="foot"><p>Questions? Chat with us directly.</p><p class="small muted" style="margin:4px 0 0">Site version: Nov 22 · 6:10 PM</p><div class="waline"><a class="btn ghost" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center" target="_blank" rel="noopener" href="' + 'https://api.whatsapp.com/send?phone=' + esc(S.cfg.adminWhatsapp) + '&text=' + encodeURIComponent('Hi ' + S.cfg.businessName + '! I have a question.') + '">Message ' + esc(localNum(S.cfg.adminWhatsapp)) + '</a></div><button class="linkbtn" id="adminLink" style="font-size:13px;opacity:.7">Admin</button></footer>';
 }
 function bindWelcome() {
   bindLabWelcome(); startCountdowns(); revealOnScroll(); bindRate(); bindPoll(); bgStart(); bindWelcomeFx(); if ($('#goCmp2')) $('#goCmp2').onclick = () => go('compare');
@@ -1765,7 +1765,7 @@ function labResHtml(L) {
   if (!L.orders.length) return '<div class="alert warn" style="margin-top:14px">We could not find any order with that WhatsApp number. Please check the number you used when ordering.</div>';
   return '<div class="fres">' + L.orders.map((o, i) => {
     const l = o.label, lt = !o.canLabel ? '' : l ? '<span class="tag ' + payCls2(l.pay) + '">' + (l.labels ? 'Labels: yes' : 'Labels: no') + ' · ' + esc(l.pay) + '</span><span class="tag ok">address saved</span>' : '<span class="tag kit">details needed</span>';
-    return '<div class="fo"><div class="row spread"><span class="ref">' + esc(o.ref) + '</span><b class="num">' + fmt(o.total) + '</b></div><div>' + esc(o.name) + ' <span class="muted small">· ' + esc(o.formTitle) + '</span></div>' +
+    return '<div class="fo"><div class="row spread"><span class="ref">' + esc(o.ref) + '</span><b class="num">' + fmt(gtOf(o)) + '</b></div><div>' + esc(o.name) + ' <span class="muted small">· ' + esc(o.formTitle) + '</span></div>' +
       '<div style="margin-top:6px"><span class="tag plain" style="margin-left:0">' + esc(o.status) + '</span><span class="tag ' + payCls(o.pay) + '">' + esc(o.pay) + '</span>' + lt + '</div>' +
       '<div class="frow">' + (o.canLabel ? '<button class="btn sm grow" data-lab="' + i + '">' + (l ? 'Edit labels &amp; address' : 'Labels &amp; address') + '</button>' : '') + '<button class="btn sm ghost grow" data-view="' + i + '">View order</button></div></div>';
   }).join('') + '</div>';
@@ -2567,6 +2567,21 @@ function summaryHtml() {
     '<div class="line total"><span>Total</span><span class="num">' + fmt(c.total) + '</span></div>';
 }
 function renderSummary() { const el = $('#summary'); if (el) el.innerHTML = summaryHtml(); const pa = $('#payamt'); if (pa) pa.textContent = fmt(S.form === 'MAMMOTH' ? payTotal() : calc().total); }
+function dupAsk(ref) {
+  return new Promise(res => {
+    modal('<h2 class="h-lg">You already have an order</h2><p class="muted" style="margin:10px 0 18px">You placed order <b>' + esc(ref) + '</b> from this phone. To add or change items, edit that order so you keep one reference number. Placing again makes a second reference number.</p>' +
+      '<div class="stack"><button class="btn" id="dkE">Edit my existing order</button><button class="btn ghost" id="dkN">Place a separate order</button></div>');
+    $('#dkE').onclick = () => { closeModal(); res('edit'); };
+    $('#dkN').onclick = () => { closeModal(); res('new'); };
+  });
+}
+async function editExisting(ref, phone) {
+  try {
+    const r = await call('lookupOrder', ref, phone);
+    if (r.order.lockReason) { toast(r.order.lockReason); return false; }
+    S.kits = r.kits; S.order = r.order; beginEdit(); return true;
+  } catch (e) { toast(e.message); return false; }
+}
 async function place() {
   const c = calc(), d = S.draft, e = S.editing, btn = $('#place'), err = $('#err');
   err.innerHTML = '';
@@ -2593,6 +2608,14 @@ async function place() {
   if (holdQ) payload.hold = S.hold.ans;
   payload.vouchers = (d.vlist || []).map(v => v.code);
   if (needsPayNow()) payload.proof = {image: proofJpeg(drawProof({kind: 'ORDER', ref: (S.cfg.forms[S.form].title + ' ORDER · ' + d.name.trim()).toUpperCase(), amount: String(S.form === 'MAMMOTH' ? payTotal() : c.total), img: S.fp.img}, Date.now() + (S.fp.off || 0)))};
+  if (!e && !(S.dupAsked && S.dupAsked[S.form])) {
+    const rec = store.get('blvc_recent', []).filter(x => x.form === S.form)[0];
+    if (rec) {
+      const pick = await dupAsk(rec.ref);
+      if (pick === 'edit') { if (await editExisting(rec.ref, d.phone)) return; }
+      (S.dupAsked = S.dupAsked || {})[S.form] = true;
+    }
+  }
   btn.disabled = true; btn.textContent = needsPayNow() ? 'Placing your order…' : 'Saving your order…';
   try {
     const r = e ? await call('updateOrder', e.ref, e.phone, payload) : await call('submitOrder', payload);
@@ -2704,12 +2727,21 @@ function receiptHtml(o) {
     '<div class="line"><span>Shipping</span><span class="num">' + (o.form === 'MAMMOTH' && !o.shipping && !(S.cfg.mm && S.cfg.mm.shipNow) ? 'not charged yet' : fmt(o.shipping)) + '</span></div>' +
     (o.voucher ? (o.voucher.list || [o.voucher]).map(x => vchLine(x.code, x.amount)).join('') : '') +
     '<div class="line total"><span>Total</span><span class="num">' + fmt(o.total + (o.labFee || 0)) + '</span></div>' +
+    (o.paid > 0 ? '<div class="line"><span>Paid so far</span><span class="num">' + fmt(o.paid) + '</span></div>' + (o.due > 0.004 ? '<div class="line total"><span>Balance to pay</span><span class="num">' + fmt(o.due) + '</span></div>' : o.over > 0.004 ? '<div class="line"><span>Overpaid</span><span class="num">' + fmt(o.over) + '</span></div>' : '') : '') +
     '<div class="center" style="margin-top:10px"><span class="tag plain">Payment: ' + esc(o.pay) + '</span><span class="tag plain">' + esc(o.status) + '</span></div>' +
     (o.note ? '<p class="small muted" style="margin-top:12px">Note: ' + esc(o.note) + '</p>' : '') + '</div>';
 }
 const localNum = n => { n = String(n || '').replace(/\D/g, ''); return n.indexOf('63') === 0 ? '0' + n.slice(2) : n; };
 const waWeb = t => 'https://api.whatsapp.com/send?phone=' + S.cfg.adminWhatsapp + '&text=' + encodeURIComponent(t);
 const waApp = t => 'whatsapp://send?phone=' + S.cfg.adminWhatsapp + '&text=' + encodeURIComponent(t);
+/* the amount the customer still has to pay (order + vial labels, minus what they already sent) */
+function balAlert(o, fresh) {
+  if (o.due == null || o.status === 'Removed') return '';
+  if (o.due > 0.004) return '<div class="alert warn" style="font-size:16px"><b>' + (o.paid > 0 ? (fresh === 'updated' ? 'New balance to pay: ' : 'Balance to pay: ') : 'Amount to pay: ') + '<span class="num">' + fmt(o.due) + '</span></b><br><span class="small">Order total ' + fmt(o.grandTotal) + (o.labFee > 0 ? ' (includes vial labels ' + fmt(o.labFee) + ')' : '') + (o.paid > 0 ? ' · you paid ' + fmt(o.paid) : '') + '. Tap "Upload payment proof" below to send it.</span></div>';
+  if (o.over > 0.004) return '<div class="alert ok"><b>You paid ' + fmt(o.over) + ' more than your order total.</b> We will sort out the difference with you on WhatsApp.</div>';
+  if (o.paid > 0) return '<div class="alert ok"><b>Fully paid.</b> You have paid ' + fmt(o.paid) + ', no balance left.</div>';
+  return '';
+}
 function doneView() {
   const o = S.order; if (!o) { go('welcome'); return; }
   const fresh = S.justSaved;
@@ -2719,14 +2751,15 @@ function doneView() {
     '<h1 class="h-lg" style="margin:4px 0 14px">' + title + '</h1>' +
     '<div class="refbox"><div class="muted small">Reference number</div><div class="code" id="refcode">' + esc(o.ref) + '</div><button class="btn sm soft" id="copyRef" style="margin:10px auto 0">' + ICON.copy + ' Copy number</button></div>' +
     '<p class="small muted" style="margin-top:12px">Keep this number. With your WhatsApp number, it lets you edit or remove your order here.</p></section>' +
+    balAlert(o, fresh) +
     (fresh && PAYNOW[o.form] && o.pay !== 'Unpaid' ? '<div class="alert ok"><b>Payment received.</b> Your screenshot was sent with your order and we will verify it soon. Tap the green button to send your invoice to ' + esc(S.cfg.businessName) + ' on WhatsApp.</div>' : fresh ? '<div class="alert warn"><b>One more step:</b> tap the green button to send your invoice to ' + esc(S.cfg.businessName) + ' on WhatsApp, or copy it below. ' + esc(S.cfg.paymentNote) + '</div>' : '') +
     '<div class="stack"><a class="btn wa" id="waBtn" href="' + esc(waWeb(o.invoice)) + '" target="_blank" rel="noopener">' + ICON.wa + ' Send invoice on WhatsApp</a>' +
     '<div class="card" style="margin:0;padding:16px"><p class="h-md" style="margin-bottom:4px">WhatsApp not opening?</p><p class="small muted" style="margin-bottom:12px">No worries. Copy your invoice, then paste it in a chat with ' + esc(S.cfg.businessName) + ' at <b>' + esc(localNum(S.cfg.adminWhatsapp)) + '</b>.</p>' +
     '<div class="stack"><button class="btn" id="copyInv2">' + ICON.copy + ' Copy invoice</button><button class="btn ghost" id="copyNum">' + ICON.copy + ' Copy WhatsApp number</button>' +
     '<a class="btn soft" href="' + esc(waApp(o.invoice)) + '">' + ICON.wa + ' Open in the WhatsApp app</a></div></div>' +
     '<a class="btn soft" href="' + esc(S.cfg.communityLink) + '" target="_blank" rel="noopener">' + ICON.wa + ' Join our WhatsApp community</a></div>' +
+    (o.status !== 'Removed' && !(o.due != null && o.due <= 0.004) ? '<div class="card" style="margin-top:16px"><h2 class="h-md" style="margin-bottom:4px">' + (o.due > 0.004 ? 'Pay <span class="num">' + fmt(o.due) + '</span>' : 'Ready to pay?') + '</h2><p class="small muted" style="margin-bottom:12px">Upload your payment screenshot here. We add a watermark with this reference number for you.</p><button class="btn" id="payBtn2">' + ICON.up + ' Upload payment proof</button><div id="paylist" style="margin-top:12px"></div></div>' : '') +
     (o.form === 'MAMMOTH' && o.status !== 'Removed' && S.cfg.labels && S.cfg.labels.open ? '<div class="card" style="margin-top:16px"><h2 class="h-md" style="margin-bottom:4px">Vial labels (optional)</h2><p class="small muted" style="margin-bottom:12px">We already have your delivery address. Want vial labels &amp; numbers' + (S.cfg.labels.fee > 0 ? ' (' + fmt(S.cfg.labels.fee) + ' per vial, optional)' : ' (optional)') + '.</p><button class="btn" id="goAddr">Add vial labels</button><div id="addrErr"></div></div>' : '') +
-    (o.status !== 'Removed' ? '<div class="card" style="margin-top:16px"><h2 class="h-md" style="margin-bottom:4px">Ready to pay?</h2><p class="small muted" style="margin-bottom:12px">Upload your payment screenshot here. We add a watermark with this reference number for you.</p><button class="btn" id="payBtn2">' + ICON.up + ' Upload payment proof</button><div id="paylist" style="margin-top:12px"></div></div>' : '') +
     '<div style="height:18px"></div>' + receiptHtml(o) +
     (o.lockReason ? '<div class="alert warn" style="margin-top:16px">' + esc(o.lockReason) + '</div>' : '') +
     '<div class="stack" style="margin-top:18px">' +
@@ -2998,11 +3031,12 @@ function batchFilter(d) {
 function setAD(d) { A.raw = d; A.role = d.role || A.role || 'owner'; if (!A.view) A.view = d.curBatch || 'all'; A.data = batchFilter(d); return A.data; }
 const isOwner = () => A.role !== 'jez';
 const liveAll = d => d.orders.concat(d.yix || []).filter(o => o.status !== 'Removed');
-const saleOf = o => (o.subtotal || 0) + (o.labelFee || 0) - ((o.voucher && o.voucher.item) || 0);   // item sales (+ label fees). Packaging and shipping are never counted as sales.
+const gtOf = o => Math.round(((o.total || 0) + (o.labFee || 0)) * 100) / 100;   // grand total: order + Mammoth vial labels
+const saleOf = o => (o.subtotal || 0) + (o.labelFee || o.labFee || 0) - ((o.voucher && o.voucher.item) || 0);   // item sales (+ label fees). Packaging and shipping are never counted as sales.
+const isPayRow = (x, o) => x.ref === o.ref && (x.kind === 'ORDER' || x.purpose === 'Mammoth labels');
 function paidIn(o, pays) {
-  if (o.pay === 'Paid') return o.total;
-  const v = (pays || []).filter(x => x.ref === o.ref && x.kind === 'ORDER' && x.status === 'Verified').reduce((a, x) => a + x.amount, 0);
-  return Math.min(o.total, v);
+  const v = (pays || []).filter(x => isPayRow(x, o) && x.status === 'Verified').reduce((a, x) => a + x.amount, 0);
+  return Math.min(gtOf(o), o.pay === 'Paid' ? Math.max(v, o.total) : v);
 }
 function batchName(id) { const b = (A.raw.batches || []).find(x => x.id === id); return b ? b.name : id; }
 function adminView() {
@@ -3197,7 +3231,7 @@ function adminSearch() {
     const hit = (A.raw.orders || []).concat(A.raw.yix || []).filter(o => (o.ref + ' ' + o.name + ' ' + String(o.phone).replace(/^0/, '') + ' ' + o.phone).toLowerCase().includes(q)).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
     const inv = (A.raw.invoices || []).filter(v => (v.no + ' ' + v.name + ' ' + v.phone).toLowerCase().includes(q));
     $('#asr').innerHTML = (hit.length || inv.length ? '' : '<p class="muted center" style="margin-top:16px">Nothing found.</p>') +
-      hit.slice(0, 60).map(o => '<button class="ocard" data-ar="' + esc(o.ref) + '"><div class="row spread"><span class="ref">' + esc(o.ref) + '</span><b class="num">' + fmt(o.total) + '</b></div><div>' + esc(o.name) + ' <span class="muted small">· ' + esc(o.formTitle || '') + '</span></div><div style="margin-top:6px"><span class="tag plain" style="margin-left:0">' + esc(bname(o.batch)) + '</span><span class="tag ' + payCls(o.pay) + '">' + esc(o.pay) + '</span><span class="tag plain">' + esc(o.status) + '</span></div></button>').join('') +
+      hit.slice(0, 60).map(o => '<button class="ocard" data-ar="' + esc(o.ref) + '"><div class="row spread"><span class="ref">' + esc(o.ref) + '</span><b class="num">' + fmt(gtOf(o)) + '</b></div><div>' + esc(o.name) + ' <span class="muted small">· ' + esc(o.formTitle || '') + '</span></div><div style="margin-top:6px"><span class="tag plain" style="margin-left:0">' + esc(bname(o.batch)) + '</span><span class="tag ' + payCls(o.pay) + '">' + esc(o.pay) + '</span><span class="tag plain">' + esc(o.status) + '</span></div></button>').join('') +
       inv.slice(0, 20).map(v => '<div class="card" style="padding:12px"><div class="row spread"><b>Invoice ' + esc(v.no) + '</b><span class="muted small">' + when(v.createdAt) + '</span></div><div>' + esc(v.name) + ' <span class="muted small">· ' + esc(v.phone) + '</span></div></div>').join('') +
       (hit.length > 60 ? '<p class="muted small center">Showing the first 60. Type more to narrow it down.</p>' : '');
     document.querySelectorAll('[data-ar]').forEach(b => b.onclick = () => { A.view = 'all'; A.data = batchFilter(A.raw); const ref = b.dataset.ar; adminView(); toast('Showing all batches'); /^YIX-/i.test(ref) ? openYixOrder(ref) : openOrderEditor(ref); });
@@ -3312,8 +3346,8 @@ function adminSales() {
   const invs = (raw.invoices || []).filter(v => inView(v.createdAt));
   const invRev = R(invs.reduce((a, v) => a + v.custom.reduce((b, x) => b + x.qty * x.price, 0), 0)), invFeeP = R(invs.reduce((a, v) => a + (v.pk || 0), 0)), invFeeS = R(invs.reduce((a, v) => a + (v.sh || 0), 0));
   const tot = R(live.reduce((a, o) => a + saleOf(o), 0) + invRev);
-  const got = R(live.reduce((a, o) => a + (o.total > 0 ? saleOf(o) * paidIn(o, pays) / o.total : 0), 0));
-  const pack = R(live.reduce((a, o) => a + (o.packaging || 0), 0) + invFeeP), ship = R(live.reduce((a, o) => a + (o.shipping || 0), 0) + invFeeS), lab = R(live.reduce((a, o) => a + (o.labelFee || 0), 0));
+  const got = R(live.reduce((a, o) => a + (gtOf(o) > 0 ? saleOf(o) * paidIn(o, pays) / gtOf(o) : 0), 0));
+  const pack = R(live.reduce((a, o) => a + (o.packaging || 0), 0) + invFeeP), ship = R(live.reduce((a, o) => a + (o.shipping || 0), 0) + invFeeS), lab = R(live.reduce((a, o) => a + (o.labelFee || o.labFee || 0), 0));
   const feeCost = R(live.reduce((a, o) => a + (o.packCost || 0) + (o.shipCost || 0), 0));
   const disc = R(live.reduce((a, o) => a + ((o.voucher && o.voucher.item) || 0), 0)), feeDisc = R(live.reduce((a, o) => a + (o.voucher ? o.voucher.amount - (o.voucher.item || 0) : 0), 0));
   const P = {}; live.forEach(o => (o.items || []).forEach(i => {
@@ -3331,8 +3365,21 @@ function adminSales() {
   const net = R(gp + pack + ship - feeDisc - feeCost - expOther);
   const margin = revCosted > 0 ? Math.round(gp / revCosted * 1000) / 10 : null;
   const aov = live.length ? R((tot - invRev) / live.length) : 0, paidN = live.filter(o => o.pay === 'Paid').length;
+  // ---- what the Mammoth orders cost in US$ on the Lily pricelist (your costs are kept in pesos at 64.5 per US$)
+  const LILY_RATE = 64.5, usdF = n => 'US$' + (Math.round(n * 100) / 100).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  let lUsd = 0, lUsdPaid = 0, lV = 0, lOrd = 0, lMiss = 0; const lP = {};
+  live.forEach(o => { if (o.form !== 'MAMMOTH') return; let any = false;
+    (o.items || []).forEach(i => { const c = costs['MAMMOTH|' + i.code]; if (c == null) { lMiss++; return; } const v = itemVials(i), u = c * v / LILY_RATE;
+      lUsd += u; lV += v; if (o.pay === 'Paid') lUsdPaid += u; any = true; const e = lP[i.code] || (lP[i.code] = {n: i.name, sp: i.spec, v: 0, u: 0}); e.v += v; e.u += u; });
+    if (any) lOrd++; });
+  const lilyCard = () => !isOwner() ? '' : '<div class="card" style="padding:16px"><h3 class="h-md" style="margin-bottom:6px">Supplier cost (Lily pricelist)</h3>' +
+    '<div class="big" style="font-size:36px">' + usdF(lUsd) + '</div><div class="small muted">' + lOrd + ' Mammoth order' + (lOrd === 1 ? '' : 's') + ' · ' + lV + ' vials · about ' + money(lUsd * LILY_RATE) + ' at ₱' + LILY_RATE + ' per US$</div>' +
+    '<div class="cashrows">' + row('Cost of orders already fully paid by buyers', usdF(lUsdPaid)) + row('Still to be covered by buyers', usdF(lUsd - lUsdPaid)) + '</div>' +
+    (lMiss ? '<div class="alert warn" style="margin:10px 0 0">' + lMiss + ' ordered item' + (lMiss === 1 ? ' has' : 's have') + ' no cost yet, so they are not counted here.</div>' : '') +
+    (Object.keys(lP).length ? '<details style="margin-top:10px"><summary class="small muted" style="cursor:pointer">By product (' + Object.keys(lP).length + ')</summary>' + Object.values(lP).sort((a, b) => b.u - a.u).map(e => '<div class="iline"><span>' + esc(e.n) + ' <span class="muted small">' + esc(e.sp) + ' · ' + e.v + ' vials</span></span><b class="num">' + usdF(e.u) + '</b></div>').join('') + '</details>' : '') +
+    '<p class="small muted" style="margin:8px 0 0">Lily price per kit ÷ vials per kit × vials ordered. Only you see this. Follows the Batch menu.</p></div>';
   const titles = {YIXING: d.pub.forms.YIXING.title, INVOICE: 'Invoices (other items)'}; Object.keys(d.pub.forms).forEach(k => titles[k] = d.pub.forms[k].title);
-  const byF = {}; live.forEach(o => { const e = byF[o.form] || (byF[o.form] = {n: 0, s: 0, c: 0}); e.n++; e.s += saleOf(o); e.c += o.total > 0 ? saleOf(o) * paidIn(o, pays) / o.total : 0; });
+  const byF = {}; live.forEach(o => { const e = byF[o.form] || (byF[o.form] = {n: 0, s: 0, c: 0}); e.n++; e.s += saleOf(o); e.c += gtOf(o) > 0 ? saleOf(o) * paidIn(o, pays) / gtOf(o) : 0; });
   if (invs.length) byF.INVOICE = {n: invs.length, s: invRev, c: R(invs.filter(v => v.paid).reduce((a, v) => a + v.custom.reduce((b, x) => b + x.qty * x.price, 0), 0))};
   const byD = {}; live.forEach(o => { const k = phDay(o.createdAt); if (k) byD[k] = (byD[k] || 0) + saleOf(o); });
   const days = Object.keys(byD).sort().slice(-14);
@@ -3340,7 +3387,7 @@ function adminSales() {
   const topC = Object.values(cust).sort((a, b) => b.s - a.s).slice(0, 5);
   const bt = bs.filter(b => b.start > 0).reverse().map(b => {   // the very first batch (everything before batch 2) is left out of the sales board
     const os = liveAll({orders: raw.orders.filter(x => x.batch === b.id), yix: raw.yix.filter(x => x.batch === b.id)});
-    return {id: b.id, name: b.name, n: os.length, s: R(os.reduce((a, o) => a + saleOf(o), 0)), c: R(os.reduce((a, o) => a + (o.total > 0 ? saleOf(o) * paidIn(o, raw.payments) / o.total : 0), 0))};
+    return {id: b.id, name: b.name, n: os.length, s: R(os.reduce((a, o) => a + saleOf(o), 0)), c: R(os.reduce((a, o) => a + (gtOf(o) > 0 ? saleOf(o) * paidIn(o, raw.payments) / gtOf(o) : 0), 0))};
   });
   const scope = A.view === 'all' ? 'All batches' : batchName(A.view);
   const row = (l, v, cls, hint) => '<div class="iline ' + (cls || '') + '"><span>' + l + (hint ? ' <span class="muted small">' + hint + '</span>' : '') + '</span><b class="num">' + v + '</b></div>';
@@ -3373,6 +3420,7 @@ function adminSales() {
     row('<b>Gross profit</b>', money(gp) + '', 'tot', margin != null ? margin + '% of costed sales' : '') +
     row('Packaging fees charged', '+ ' + money(pack), 'pos') + row('Shipping fees charged', '+ ' + money(ship), 'pos') + (feeDisc ? row('Free shipping / packaging vouchers', '− ' + money(feeDisc), 'neg') : '') + row('Packaging &amp; shipping costs paid', '− ' + money(feeCost), 'neg') + row('Marketing, supplies &amp; other', '− ' + money(expOther), 'neg') +
     row('<b>Net profit</b>', money(net), 'tot') + '<p class="small muted" style="margin:8px 0 0">Supplier payments (' + money(expSup) + ' in this view) leave your bank but are not an expense here, because the cost of products is already counted above.' + (missing.length ? ' Profit only counts products that have a cost: add the rest in Product costs below.' : '') + '</p></div>' +
+    lilyCard() +
     '<div class="card" style="padding:16px"><h3 class="h-md" style="margin-bottom:8px">Best sellers</h3>' + (plist.length ? '<div class="small muted" style="margin-bottom:6px">Most vials sold</div>' + bars(plist.slice().sort((a, b) => b.v - a.v).slice(0, 8).map(e => ({n: e.n, sub: e.sp, v: e.v})), v => v + ' pcs') +
       '<div class="small muted" style="margin:14px 0 6px">Most sales (₱)</div>' + bars(plist.slice().sort((a, b) => b.rev - a.rev).slice(0, 8).map(e => ({n: e.n, sub: e.sp, v: R(e.rev)})), money0, 'var(--rose)') +
       (plist.some(e => e.has) ? '<div class="small muted" style="margin:14px 0 6px">Most profit (₱)</div>' + bars(plist.filter(e => e.has).sort((a, b) => b.gp - a.gp).slice(0, 6).map(e => ({n: e.n, sub: e.sp, v: Math.max(0, e.gp)})), money0, 'var(--sage)') : '') : '<p class="muted small">No orders in this view yet.</p>') + '</div>' +
@@ -3478,7 +3526,7 @@ function openPayment(id) {
     '<div id="proof" class="muted center" style="margin:12px 0">Loading the image…</div>' +
     '<div class="receipt"><div class="line"><span class="muted">Customer</span><b>' + esc(x.name) + '</b></div><div class="line"><span class="muted">WhatsApp</span><b>' + esc(x.phone) + '</b></div>' +
     '<div class="line"><span class="muted">Amount</span><b>' + fmt(x.amount) + '</b></div><div class="line"><span class="muted">For</span><b>' + esc(x.kind === 'ORDER' ? x.ref : x.purpose + (x.ref ? ' · ' + x.ref : '')) + '</b></div>' +
-    (o ? '<div class="line"><span class="muted">Order total</span><b>' + fmt(o.total) + ' · ' + esc(o.pay) + '</b></div>' : '') +
+    (o ? '<div class="line"><span class="muted">Order total</span><b>' + fmt(gtOf(o)) + ' · ' + esc(o.pay) + '</b></div>' : '') +
     (x.note ? '<div class="line"><span class="muted">Note</span><b>' + esc(x.note) + '</b></div>' : '') + '</div>' +
     '<div class="field" style="margin-top:14px"><label class="f" for="pnote">Admin note (only you see this)</label><input class="in" id="pnote" value="' + esc(x.adminNote) + '"></div>' +
     (o ? '<p class="small muted">Verifying updates the order\'s payment status automatically: Paid once verified payments cover the invoice, otherwise Partially Paid.</p>' : '') +
@@ -3496,15 +3544,20 @@ function openPayment(id) {
 /* --- orders tab */
 const PAYS = ['Unpaid', 'Partially Paid', 'Paid (unverified)', 'Paid'], STATS = ['Received', 'Confirmed', 'Ordered from supplier', 'Waiting for delivery', 'Arrived', 'Packed', 'Shipped', 'Completed', 'Removed'];
 const payCls = p => p === 'Paid' ? 'ok' : p === 'Unpaid' ? 'bad' : 'kit';
-function paidOf(o) {
-  if (o.pay === 'Paid') return o.total;
-  const v = (A.data.payments || []).filter(x => x.ref === o.ref && x.kind === 'ORDER' && x.status === 'Verified').reduce((a, x) => a + x.amount, 0);
-  return Math.min(o.total, v);
+function paidOf(o) { return paidIn(o, (A.data && A.data.payments) || []); }
+const phKey = p => { const dg = String(p || '').replace(/\D/g, ''); return dg.length >= 10 ? 'ph:' + dg.slice(-10) : ''; };
+function custMap(orders) {
+  const par = {}, f = x => par[x] === x ? x : (par[x] = f(par[x]));
+  const u = (a, b) => { if (!(a in par)) par[a] = a; if (!(b in par)) par[b] = b; const ra = f(a), rb = f(b); if (ra !== rb) { if (ra < rb) par[rb] = ra; else par[ra] = rb; } };
+  orders.forEach(o => { const p = phKey(o.phone); u(o.custKey, o.custKey); if (p) u(o.custKey, p); });
+  const m = {}; orders.forEach(o => { m[o.ref] = f(o.custKey); }); return m;
 }
 function groupCust(orders) {
-  const map = {}, list = [];
+  const cm = custMap(((A.data && A.data.orders) || orders).filter(o => o.status !== 'Removed')), map = {}, list = [];
   orders.slice().sort((a, b) => a.createdAt < b.createdAt ? -1 : 1).forEach(o => {
-    const g = map[o.custKey] || (map[o.custKey] = {key: o.custKey, name: o.custName, regular: [], pasalo: [], all: []});
+    const k = cm[o.ref] || o.custKey;
+    const g = map[k] || (map[k] = {key: k, name: o.custName, names: [], regular: [], pasalo: [], all: []});
+    if (o.custName !== g.name && !g.names.includes(o.custName)) g.names.push(o.custName);
     (o.pasalo ? g.pasalo : g.regular).push(o); g.all.push(o);
     if (!list.includes(g)) list.push(g);
   });
@@ -3513,14 +3566,14 @@ function groupCust(orders) {
 const sel = (arr, v, attrs) => '<select class="in" ' + attrs + '>' + arr.map(x => '<option' + (x === v ? ' selected' : '') + '>' + x + '</option>').join('') + '</select>';
 
 function payNums(o) {
-  const ps = (A.data.payments || []).filter(x => x.ref === o.ref && x.kind === 'ORDER' && x.status !== 'Rejected');
+  const ps = (A.data.payments || []).filter(x => isPayRow(x, o) && x.status !== 'Rejected');
   const live = Math.round(ps.reduce((a, x) => a + x.amount, 0) * 100) / 100;
-  return {ps, live, bal: Math.max(0, Math.round((o.total - live) * 100) / 100), over: Math.max(0, Math.round((live - o.total) * 100) / 100)};
+  return {ps, live, bal: Math.max(0, Math.round((gtOf(o) - live) * 100) / 100), over: Math.max(0, Math.round((live - gtOf(o)) * 100) / 100)};
 }
 const payTagCls = s => s === 'Verified' ? 'ok' : s === 'Rejected' ? 'bad' : 'kit';
 function payBox(o) {
   const n = payNums(o);
-  return '<div class="paybox"><div class="iline"><span>Order total</span><b class="num">' + fmt(o.total) + '</b></div>' +
+  return '<div class="paybox"><div class="iline"><span>Order total' + (o.labFee > 0 ? ' (incl. vial labels ' + fmt(o.labFee) + ')' : '') + '</span><b class="num">' + fmt(gtOf(o)) + '</b></div>' +
     '<div class="iline"><span>Payments received</span><b class="num">' + fmt(n.live) + '</b></div>' +
     '<div class="iline"><b>' + (n.over ? 'Overpaid' : 'Balance to collect') + '</b><b class="num" style="color:' + (n.bal ? 'var(--berry-d)' : 'inherit') + '">' + fmt(n.over || n.bal) + '</b></div>' +
     (n.ps.length ? n.ps.map(x => '<div class="prow"><span>' + when(x.createdAt) + (x.note ? '<br><span class="muted small">' + esc(x.note) + '</span>' : '') + '</span><span><b class="num">' + fmt(x.amount) + '</b> <span class="tag ' + payTagCls(x.status) + '">' + esc(x.status) + '</span></span></div>').join('') : '<p class="muted small" style="margin:6px 0 0">No payments yet.</p>') +
@@ -3539,7 +3592,7 @@ function balTag(o) { const n = payNums(o); return n.live > 0 || o.status === 'Re
 function balLine(o) { const n = payNums(o); return '<div class="small" style="margin-top:6px"><span class="muted">Paid</span> <b class="num">' + fmt(n.live) + '</b> · ' + (n.over ? '<span class="muted">Overpaid</span> <b class="num">' + fmt(n.over) + '</b>' : '<span class="muted">Balance</span> <b class="num" style="color:' + (n.bal ? 'var(--berry-d)' : 'inherit') + '">' + fmt(n.bal) + '</b>') + '</div>'; }
 function adminOrders() {
   const f = A.f, d = A.data;
-  if (!A.view) A.view = 'orders';
+  if (!A.view) A.view = 'customers';
   if (!A.sort) A.sort = 'new';
   $('#tab').innerHTML =
     '<button class="btn" id="newOrder">Add an order</button>' +
@@ -3555,30 +3608,33 @@ function adminOrders() {
     const rows = d.orders.filter(o => (!f.form || o.form === f.form) && (!f.pay || o.pay === f.pay) && (!f.status || o.status === f.status) &&
       (!q || (o.ref + ' ' + o.name + ' ' + o.phone).toLowerCase().includes(q)));
     const live = rows.filter(o => o.status !== 'Removed');
-    const total = live.reduce((a, o) => a + o.total, 0), paid = live.reduce((a, o) => a + paidOf(o), 0), vials = live.reduce((a, o) => a + o.vials, 0);
+    const total = live.reduce((a, o) => a + gtOf(o), 0), paid = live.reduce((a, o) => a + paidOf(o), 0), vials = live.reduce((a, o) => a + o.vials, 0);
     $('#osum').innerHTML = '<span><b>' + live.length + '</b> orders</span><span><b>' + vials + '</b> vials</span>' + (isOwner() ? '<span>Total <b>' + fmt(total) + '</b></span><span>Paid <b>' + fmt(paid) + '</b></span><span>Balance <b>' + fmt(total - paid) + '</b></span>' : '');
     if (A.view === 'customers') {
       const groups = groupCust(live);
-      if (A.sort === 'big') groups.sort((a, b) => b.all.reduce((s, o) => s + o.total, 0) - a.all.reduce((s, o) => s + o.total, 0));
+      if (A.sort === 'big') groups.sort((a, b) => b.all.reduce((s, o) => s + gtOf(o), 0) - a.all.reduce((s, o) => s + gtOf(o), 0));
       else if (A.sort === 'new') groups.sort((a, b) => (b.all[b.all.length - 1].createdAt < a.all[a.all.length - 1].createdAt ? -1 : 1));
       else if (A.sort === 'old') groups.sort((a, b) => (a.all[0].createdAt < b.all[0].createdAt ? -1 : 1));
       $('#olist').innerHTML = groups.length ? groups.map(g => {
-        const t = g.all.reduce((s, o) => s + o.total, 0), p = g.all.reduce((s, o) => s + paidOf(o), 0), v = g.all.reduce((s, o) => s + o.vials, 0);
+        const t = g.all.reduce((s, o) => s + gtOf(o), 0), p = g.all.reduce((s, o) => s + paidOf(o), 0), v = g.all.reduce((s, o) => s + o.vials, 0);
         return '<button class="ocard" data-ck="' + esc(g.key) + '"><div class="row spread"><span class="ref">' + esc(g.name) + '</span><b class="num">' + fmt(t) + '</b></div>' +
-          '<div class="small muted" style="margin-top:2px">' + g.all.length + ' order' + (g.all.length === 1 ? '' : 's') + ' · ' + v + ' vials' + (g.pasalo.length ? ' · ' + g.pasalo.length + ' pasalo' : '') + '</div>' +
+          '<div class="small muted" style="margin-top:2px">' + g.all.length + ' order' + (g.all.length === 1 ? '' : 's') + ' · ' + v + ' vials' + (g.pasalo.length ? ' · ' + g.pasalo.length + ' pasalo' : '') + (g.names.length ? ' · also ' + g.names.map(esc).join(', ') : '') + '</div>' +
+          '<div class="small muted" style="margin-top:2px;word-break:break-all">' + g.all.map(o => esc(o.ref)).join(' · ') + '</div>' +
           '<div style="margin-top:6px"><span class="tag ' + (t - p < 0.005 ? 'ok' : p > 0 ? 'kit' : 'bad') + '" style="margin-left:0">' + (t - p < 0.005 ? 'Fully paid' : 'Balance ' + fmt(t - p)) + '</span>' +
           g.all.map(o => '<span class="tag ' + payCls(o.pay) + '">' + esc(o.pay) + '</span>').filter((x, i, a) => a.indexOf(x) === i).join('') + '</div></button>';
       }).join('') : '<div class="card center"><p class="h-md">No customers here yet</p></div>';
       document.querySelectorAll('[data-ck]').forEach(b => b.onclick = () => openCustomer(b.dataset.ck));
       return;
     }
+    const cmAll = custMap(d.orders.filter(o => o.status !== 'Removed')), cnt = {};
+    Object.keys(cmAll).forEach(r => { cnt[cmAll[r]] = (cnt[cmAll[r]] || 0) + 1; });
     const sorted = rows.slice();
-    if (A.sort === 'old') sorted.reverse(); else if (A.sort === 'big') sorted.sort((a, b) => b.total - a.total); else if (A.sort === 'name') sorted.sort((a, b) => a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1);
+    if (A.sort === 'old') sorted.reverse(); else if (A.sort === 'big') sorted.sort((a, b) => gtOf(b) - gtOf(a)); else if (A.sort === 'name') sorted.sort((a, b) => a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1);
     $('#olist').innerHTML = sorted.length ? sorted.map(o =>
-      '<div class="ocard" style="cursor:default"><button class="ohead" data-ref="' + esc(o.ref) + '"><div class="row spread"><span class="ref">' + esc(o.ref) + '</span><b class="num">' + fmt(o.total) + '</b></div>' +
+      '<div class="ocard" style="cursor:default"><button class="ohead" data-ref="' + esc(o.ref) + '"><div class="row spread"><span class="ref">' + esc(o.ref) + '</span><b class="num">' + fmt(gtOf(o)) + '</b></div>' +
       '<div>' + esc(o.name) + (o.pasalo ? ' <span class="tag plain">pasalo</span>' : '') + ' · <span class="muted">' + esc(o.phone) + ' · ' + esc(o.region) + '</span></div>' +
       '<div style="margin-top:6px"><span class="tag ' + payCls(o.pay) + '" style="margin-left:0">' + esc(o.pay) + '</span><span class="tag plain">' + esc(o.status) + '</span>' +
-      (o.status !== 'Removed' ? '<span class="tag ' + (o.kitStatus === 'Complete' ? 'ok' : 'kit') + '">kits: ' + esc(o.kitStatus) + '</span>' : '') + (o.shipOpt !== 'Standard' && o.mammothRef ? '<span class="tag ok">ships with ' + esc(o.mammothRef) + '</span>' : '') + guestTag(o.ref) + vTag(o) + '</div>' +
+      (o.status !== 'Removed' ? '<span class="tag ' + (o.kitStatus === 'Complete' ? 'ok' : 'kit') + '">kits: ' + esc(o.kitStatus) + '</span>' : '') + (o.shipOpt !== 'Standard' && o.mammothRef ? '<span class="tag ok">ships with ' + esc(o.mammothRef) + '</span>' : '') + guestTag(o.ref) + vTag(o) + (o.status !== 'Removed' && cnt[cmAll[o.ref]] > 1 ? '<span class="tag kit">' + cnt[cmAll[o.ref]] + ' orders from this customer</span>' : '') + '</div>' +
       '<div class="muted small" style="margin-top:6px">' + o.items.map(i => esc(i.name) + ' ' + esc(i.spec) + ' ×' + i.qty).join(' · ') + '</div>' + balLine(o) + '</button>' +
       '<div class="qrow">' + sel(PAYS, o.pay, 'data-qp="' + esc(o.ref) + '" aria-label="Payment status"') + sel(STATS, o.status, 'data-qs="' + esc(o.ref) + '" aria-label="Order status"') + '</div></div>').join('')
       : '<div class="card center"><p class="h-md">No orders here yet</p><p class="muted">Orders from the website show up as soon as they are placed.</p></div>';
@@ -3596,14 +3652,14 @@ function adminOrders() {
   draw();
 }
 function openCustomer(key) {
-  const d = A.data, g = groupCust(d.orders.filter(o => o.status !== 'Removed' && o.custKey === key))[0];
+  const d = A.data, g = groupCust(d.orders.filter(o => o.status !== 'Removed')).filter(x => x.key === key)[0];
   if (!g) { closeModal(); return; }
-  const t = g.all.reduce((s, o) => s + o.total, 0), p = g.all.reduce((s, o) => s + paidOf(o), 0);
+  const t = g.all.reduce((s, o) => s + gtOf(o), 0), p = g.all.reduce((s, o) => s + paidOf(o), 0);
   const block = o => '<div class="oblock" data-o="' + esc(o.ref) + '"><div class="row spread"><b class="serif" style="font-size:17px">' + esc(o.ref) + '</b><span class="muted small">' + esc(o.formTitle) + '</span></div>' +
     '<div class="muted small" style="margin-bottom:6px">' + esc(o.name) + ' · ' + esc(o.phone) + ' · ' + esc(o.region) + '</div>' +
     o.items.map(i => '<div class="iline"><span>' + esc(i.name) + ' ' + esc(i.spec) + ' <span class="muted">× ' + i.qty + '</span></span><b class="num">' + fmt(i.total) + '</b></div>').join('') +
     '<div class="iline muted"><span>Packaging</span><span class="num">' + fmt(o.packaging) + '</span></div><div class="iline muted"><span>Shipping</span><span class="num">' + fmt(o.shipping) + '</span></div>' +
-    '<div class="iline"><b>Order total</b><b class="num">' + fmt(o.total) + '</b></div>' +
+    '<div class="iline"><b>Order total</b><b class="num">' + fmt(gtOf(o)) + '</b></div>' + (o.labFee > 0 ? '<div class="small muted" style="margin:-2px 0 4px">includes vial labels ' + fmt(o.labFee) + '</div>' : '') +
     '<div class="qrow">' + sel(PAYS, o.pay, 'data-cp="' + esc(o.ref) + '" aria-label="Payment status"') + sel(STATS, o.status, 'data-cs="' + esc(o.ref) + '" aria-label="Order status"') + '</div>' +
     '<div class="qrow"><div><label class="f small">Your packaging cost</label><input class="in" type="number" step="0.01" min="0" data-cpk="' + esc(o.ref) + '" value="' + esc(o.packCost || '') + '"></div><div><label class="f small">Your shipping cost</label><input class="in" type="number" step="0.01" min="0" data-csh="' + esc(o.ref) + '" value="' + esc(o.shipCost || '') + '"></div></div>' +
     '<div class="small muted" style="margin:6px 0">Fees collected ' + fmt(o.packaging + o.shipping) + ' · left after your costs ' + fmt(o.packaging + o.shipping - (o.packCost || 0) - (o.shipCost || 0)) + '</div>' +
@@ -4514,7 +4570,7 @@ function adminYixing() {
   const d = A.data, Y = A.y || (A.y = {q: '', f: 'todo'});
   if (!Y.v) Y.v = 'ship'; if (!Y.sf) Y.sf = 'todo';
   const live = d.yix.filter(o => o.status !== 'Removed');
-  const total = live.reduce((a, o) => a + o.total, 0), paid = live.reduce((a, o) => a + o.paid, 0);
+  const total = live.reduce((a, o) => a + gtOf(o), 0), paid = live.reduce((a, o) => a + o.paid, 0);
   const toShip = live.filter(o => o.status !== 'Shipped' && o.status !== 'Completed').length;
   const nLab = live.filter(o => o.labels).length, chips = [['todo', 'To ship'], ['pay', 'Needs payment'], ['lab', 'Labels (' + nLab + ')'], ['shipped', 'Shipped'], ['all', 'All']];
   $('#tab').innerHTML =
@@ -4535,7 +4591,7 @@ function adminYixing() {
     const rows = d.yix.filter(o => o.status !== 'Removed' && (!q || (o.ref + ' ' + o.name + ' ' + o.phone).toLowerCase().includes(q)) &&
       (Y.f === 'all' || (Y.f === 'todo' && o.status !== 'Shipped' && o.status !== 'Completed') || (Y.f === 'pay' && o.due > 0.004 && o.pay !== 'Paid') || (Y.f === 'lab' && o.labels) || (Y.f === 'shipped' && (o.status === 'Shipped' || o.status === 'Completed'))));
     $('#ylist').innerHTML = rows.length ? rows.map(o =>
-      '<div class="ocard" style="cursor:default"><button class="ohead" data-yref="' + esc(o.ref) + '"><div class="row spread"><span class="ref">' + esc(o.ref) + '</span><b class="num">' + fmt(o.total) + '</b></div>' +
+      '<div class="ocard" style="cursor:default"><button class="ohead" data-yref="' + esc(o.ref) + '"><div class="row spread"><span class="ref">' + esc(o.ref) + '</span><b class="num">' + fmt(gtOf(o)) + '</b></div>' +
       '<div>' + esc(o.name) + ' <span class="muted">· ' + esc(o.phone) + ' · ' + esc(o.region) + '</span></div>' +
       '<div style="margin-top:6px"><span class="tag ' + payCls(o.pay) + '" style="margin-left:0">' + esc(o.pay) + '</span><span class="tag plain">' + esc(o.status) + '</span>' +
       (o.payNow ? '<span class="tag bad">payment due</span>' : '') + (o.labels ? '<span class="tag lab">🏷 labels &amp; numbers</span>' : '') + (o.combinedRef ? '<span class="tag ok">ships with ' + esc(o.combinedRef) + '</span>' : '') + guestTag(o.ref) + vTag(o) + (o.shipManual ? '<span class="tag kit">shipping fixed</span>' : '') +
