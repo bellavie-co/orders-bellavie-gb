@@ -1461,7 +1461,7 @@ function revealOnScroll() {
   setTimeout(() => els.forEach(e => e.classList.add('in')), 2500);
 }
 function gbInfo(k) {
-  const F = S.cfg.forms[k], co = F.cutoff ? '<div class="cdwrap">' + cdHtml(F.cutoff) + '</div>' : '';
+  const F = S.cfg.forms[k] || {}, co = F.cutoff ? '<div class="cdwrap">' + cdHtml(F.cutoff) + '</div>' : '';
   const pb = S.cfg.pb, pbf = pb ? '<span class="fact">Pharma Bac ' + fmt(pb.price).replace('.00', '') + ' · ' + fmt(pb.bulkPrice).replace('.00', '') + ' from ' + pb.bulkQty + '</span>' : '';
   if (k === 'FUAN4' || k === 'FUAN5') {
     const g = S.products.find(p => p.form === k && !p.addon), pp = S.products.find(p => p.form === k && p.addon), pbf5 = pp && pp.tier ? '<span class="fact">Pharma Bac ' + fmt(pp.vialPrice).replace('.00', '') + ' · ' + fmt(pp.tier.price).replace('.00', '') + ' from ' + pp.tier.qty + '</span>' : pbf;
@@ -1752,7 +1752,7 @@ function welcomeHtml() {
     (S.cfg.customerViewLink ? '<div class="stack" style="margin-top:10px"><a class="btn ghost" href="' + esc(S.cfg.customerViewLink) + '" target="_blank" rel="noopener">' + ICON.box + ' See the live order board</a></div>' : '') +
     (recent.length ? '<p class="small muted" style="margin-top:14px">Your last order: <button class="linkbtn" id="lastBtn">' + esc(recent[0].ref) + '</button></p>' : '') +
     '<div class="talk"><a class="btn soft" href="' + esc(S.cfg.communityLink) + '" target="_blank" rel="noopener">' + ICON.wa + ' Join our WhatsApp community</a></div></div>' +
-  '<footer class="foot"><p>Questions? Chat with us directly.</p><p class="small muted" style="margin:4px 0 0">Site version: Nov 24 · 2:10 PM</p><div class="waline"><a class="btn ghost" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center" target="_blank" rel="noopener" href="' + 'https://api.whatsapp.com/send?phone=' + esc(S.cfg.adminWhatsapp) + '&text=' + encodeURIComponent('Hi ' + S.cfg.businessName + '! I have a question.') + '">Message ' + esc(localNum(S.cfg.adminWhatsapp)) + '</a></div><button class="linkbtn" id="adminLink" style="font-size:13px;opacity:.7">Admin</button></footer>';
+  '<footer class="foot"><p>Questions? Chat with us directly.</p><p class="small muted" style="margin:4px 0 0">Site version: Nov 24 · 2:15 PM</p><div class="waline"><a class="btn ghost" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center" target="_blank" rel="noopener" href="' + 'https://api.whatsapp.com/send?phone=' + esc(S.cfg.adminWhatsapp) + '&text=' + encodeURIComponent('Hi ' + S.cfg.businessName + '! I have a question.') + '">Message ' + esc(localNum(S.cfg.adminWhatsapp)) + '</a></div><button class="linkbtn" id="adminLink" style="font-size:13px;opacity:.7">Admin</button></footer>';
 }
 function bindWelcome() {
   bindLabWelcome(); startCountdowns(); revealOnScroll(); bindRate(); bindPoll(); bgStart(); bindWelcomeFx(); if ($('#goCmp2')) $('#goCmp2').onclick = () => go('compare');
@@ -2616,7 +2616,7 @@ async function place() {
   if (S.form === 'MAMMOTH' && !e && labCodes().length) payload.labels = labCodes().map(i => i.p.code);
   if (holdQ) payload.hold = S.hold.ans;
   payload.vouchers = (d.vlist || []).map(v => v.code);
-  if (needsPayNow()) payload.proof = {image: proofJpeg(drawProof({kind: 'ORDER', ref: (S.cfg.forms[S.form].title + ' ORDER · ' + d.name.trim()).toUpperCase(), amount: String(S.form === 'MAMMOTH' ? payTotal() : c.total), img: S.fp.img}, Date.now() + (S.fp.off || 0)))};
+  if (needsPayNow()) payload.proof = {image: proofJpeg(drawProof({kind: 'ORDER', ref: (((S.cfg.forms[S.form] || {}).title || S.form) + ' ORDER · ' + d.name.trim()).toUpperCase(), amount: String(S.form === 'MAMMOTH' ? payTotal() : c.total), img: S.fp.img}, Date.now() + (S.fp.off || 0)))};
   if (!e && !(S.dupAsked && S.dupAsked[S.form])) {
     const rec = store.get('blvc_recent', []).filter(x => x.form === S.form)[0];
     if (rec) {
@@ -3401,7 +3401,7 @@ function adminSales() {
     (lMiss ? '<div class="alert warn" style="margin:10px 0 0">' + lMiss + ' ordered item' + (lMiss === 1 ? ' has' : 's have') + ' no cost yet, so they are not counted here.</div>' : '') +
     (Object.keys(lP).length ? '<details style="margin-top:10px"><summary class="small muted" style="cursor:pointer">By product (' + Object.keys(lP).length + ')</summary>' + Object.values(lP).sort((a, b) => b.u - a.u).map(e => '<div class="iline"><span>' + esc(e.n) + ' <span class="muted small">' + esc(e.sp) + ' · ' + e.v + ' vials</span></span><b class="num">' + usdF(e.u) + '</b></div>').join('') + '</details>' : '') +
     '<p class="small muted" style="margin:8px 0 0">Lily price per kit ÷ vials per kit × vials ordered. Only you see this. Follows the Batch menu.</p></div>';
-  const titles = {YIXING: d.pub.forms.YIXING.title, INVOICE: 'Invoices (other items)'}; Object.keys(d.pub.forms).forEach(k => titles[k] = d.pub.forms[k].title);
+  const titles = {YIXING: d.pub.forms.YIXING.title, INVOICE: 'Invoices (other items)'}; Object.keys(d.pub.forms).forEach(k => titles[k] = (d.pub.forms[k] || {}).title || k);
   const byF = {}; live.forEach(o => { const e = byF[o.form] || (byF[o.form] = {n: 0, s: 0, c: 0}); e.n++; e.s += saleOf(o); e.c += gtOf(o) > 0 ? saleOf(o) * paidIn(o, pays) / gtOf(o) : 0; });
   if (invs.length) byF.INVOICE = {n: invs.length, s: invRev, c: R(invs.filter(v => v.paid).reduce((a, v) => a + v.custom.reduce((b, x) => b + x.qty * x.price, 0), 0))};
   const byD = {}; live.forEach(o => { const k = phDay(o.createdAt); if (k) byD[k] = (byD[k] || 0) + saleOf(o); });
@@ -3621,7 +3621,7 @@ function adminOrders() {
     '<button class="btn" id="newOrder">Add an order</button>' +
     '<div class="seg2" id="vw"><button class="opt" data-v="orders" aria-pressed="' + (A.view === 'orders') + '">By order</button><button class="opt" data-v="customers" aria-pressed="' + (A.view === 'customers') + '">By customer</button></div>' +
     '<div class="filters"><div class="full search"><span>' + ICON.search + '</span><input class="in" id="fq" type="search" placeholder="Search name, number or reference" value="' + esc(f.q) + '"></div>' +
-    '<select class="in" id="ff"><option value="">All forms</option>' + ['MAMMOTH', 'FUAN', 'FUAN3', 'FUAN4', 'FUAN5'].map(k => '<option value="' + k + '"' + (f.form === k ? ' selected' : '') + '>' + esc(k === 'MAMMOTH' ? 'Mammoth' : A.data.pub.forms[k].title) + '</option>').join('') + '</select>' +
+    '<select class="in" id="ff"><option value="">All forms</option>' + ['MAMMOTH', 'FUAN', 'FUAN3', 'FUAN4', 'FUAN5'].map(k => '<option value="' + k + '"' + (f.form === k ? ' selected' : '') + '>' + esc(k === 'MAMMOTH' ? 'Mammoth' : ((A.data.pub.forms[k] || {}).title || FUANS[k] || k)) + '</option>').join('') + '</select>' +
     '<select class="in" id="fp2"><option value="">Any payment</option>' + PAYS.map(x => '<option' + (f.pay === x ? ' selected' : '') + '>' + x + '</option>').join('') + '</select>' +
     '<select class="in" id="fs"><option value="">Any status</option>' + STATS.map(x => '<option' + (f.status === x ? ' selected' : '') + '>' + x + '</option>').join('') + '</select>' +
     '<select class="in" id="fsort"><option value="new"' + (A.sort === 'new' ? ' selected' : '') + '>Newest first</option><option value="old"' + (A.sort === 'old' ? ' selected' : '') + '>Oldest first</option><option value="big"' + (A.sort === 'big' ? ' selected' : '') + '>Biggest total</option><option value="name"' + (A.sort === 'name' ? ' selected' : '') + '>Name A to Z</option></select></div>' +
@@ -3712,7 +3712,7 @@ function drawEditor() {
   const opts = (arr, v) => arr.map(x => '<option' + (x === v ? ' selected' : '') + '>' + x + '</option>').join('');
   modal(
     '<div class="row spread"><h2 class="h-lg">' + (E.ref ? esc(E.ref) : 'New order') + '</h2><button class="iconbtn" id="mx" aria-label="Close">' + ICON.x + '</button></div>' +
-    '<div class="field" style="margin-top:14px"><label class="f">Group buy</label><select class="in" id="ef" ' + (E.ref ? 'disabled' : '') + '>' + ['FUAN5', 'FUAN4', 'MAMMOTH', 'FUAN', 'FUAN3'].map(k => '<option value="' + k + '"' + (E.form === k ? ' selected' : '') + '>' + esc(d.pub.forms[k].title) + '</option>').join('') + '</select></div>' +
+    '<div class="field" style="margin-top:14px"><label class="f">Group buy</label><select class="in" id="ef" ' + (E.ref ? 'disabled' : '') + '>' + ['FUAN5', 'FUAN4', 'MAMMOTH', 'FUAN', 'FUAN3'].map(k => '<option value="' + k + '"' + (E.form === k ? ' selected' : '') + '>' + esc((d.pub.forms[k] || {}).title || FUANS[k] || k) + '</option>').join('') + '</select></div>' +
     '<div class="two"><div class="field"><label class="f">Name</label><input class="in" id="en" value="' + esc(E.name) + '"></div><div class="field"><label class="f">WhatsApp</label><input class="in" id="ep" type="tel" value="' + esc(E.phone) + '"></div></div>' +
     '<div class="two"><div class="field"><label class="f">Region</label><select class="in" id="er">' + opts(REGIONS, E.region) + '</select></div>' +
     '<div class="field" id="combBox"><label class="f">Shipping</label><select class="in" id="ec"><option value="0"' + (!E.combined ? ' selected' : '') + '>Regular</option><option value="1"' + (E.combined ? ' selected' : '') + '>Together with another order</option></select></div></div>' +
@@ -3804,7 +3804,7 @@ function adminInventory() {
     ['MAMMOTH', 'FUAN', 'FUAN3', 'FUAN4', 'FUAN5'].forEach(f => {
       const rs = withOrders.filter(r => r.p.form === f && r.kits > 0).sort((a, b) => a.p.name.localeCompare(b.p.name));
       if (!rs.length) return;
-      lines.push(d.pub.forms[f].title + ': kits to forward');
+      lines.push(((d.pub.forms[f] || {}).title || f) + ': kits to forward');
       rs.forEach(r => lines.push('• ' + r.p.name + ' ' + r.p.spec + ': ' + r.kits + ' kit' + (r.kits === 1 ? '' : 's') + (r.p.supply !== SUPPLY[0] ? ' (' + r.p.supply + ')' : '')));
       lines.push('');
     });
