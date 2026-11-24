@@ -977,7 +977,7 @@ function bow(cls) {
 /* ---------------- backend bridge */
 /* Leave API_URL empty when this page is served by Apps Script.
    When you host this file on Netlify / Cloudflare Pages, paste your Apps Script web-app link (ends in /exec) between the quotes. */
-const API_URL = '';
+const API_URL = 'https://script.google.com/macros/s/AKfycbzcB0ZzSyQFsJujNcbru8jNzkFtcJyy2_dPVNdLVSzXovCByPYNqIJRonu-6rW8XtWE/exec';
 function call(fn) {
   const args = Array.prototype.slice.call(arguments, 1);
   if (window.google && google.script && google.script.run) {
