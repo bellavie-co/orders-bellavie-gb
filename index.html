@@ -937,8 +937,9 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp
 const fmt = n => '₱' + Number(n || 0).toLocaleString('en-PH', {minimumFractionDigits: 2, maximumFractionDigits: 2});
 const when = iso => { try { return new Date(iso).toLocaleString('en-PH', {dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Manila'}); } catch (e) { return ''; } };
 const REGIONS = ['Luzon', 'Visayas', 'Mindanao'];
-const FUANS = {FUAN: 'Fuan GB2', FUAN3: 'Fuan GB3', FUAN4: 'Fuan GTT'}, PAYNOW = {FUAN3: 1, FUAN4: 1, MAMMOTH: 1};
+const FUANS = {FUAN: 'Fuan GB2', FUAN3: 'Fuan GB3', FUAN4: 'Fuan GTT', FUAN5: 'Last Fuan GB for the year'}, PAYNOW = {FUAN3: 1, FUAN4: 1, FUAN5: 1, MAMMOTH: 1};
 const fuanName = f => (S.cfg && S.cfg.forms && S.cfg.forms[f] && S.cfg.forms[f].title) || FUANS[f] || f;
+const noShipNow = f => f === 'MAMMOTH' ? !(S.cfg.mm && S.cfg.mm.shipNow) : (f === 'FUAN5' ? !(S.cfg.fu5 && S.cfg.fu5.shipNow) : false);
 const tierPrice = (p, q) => p && p.tier && q >= p.tier.qty ? p.tier.price : p.vialPrice;
 const tierNote = p => p && p.tier ? fmt(p.vialPrice).replace('.00', '') + ' each · ' + fmt(p.tier.price).replace('.00', '') + ' each for ' + p.tier.qty + ' or more' : '';
 
@@ -976,7 +977,7 @@ function bow(cls) {
 /* ---------------- backend bridge */
 /* Leave API_URL empty when this page is served by Apps Script.
    When you host this file on Netlify / Cloudflare Pages, paste your Apps Script web-app link (ends in /exec) between the quotes. */
-const API_URL = 'https://script.google.com/macros/s/AKfycbzcB0ZzSyQFsJujNcbru8jNzkFtcJyy2_dPVNdLVSzXovCByPYNqIJRonu-6rW8XtWE/exec';
+const API_URL = '';
 function call(fn) {
   const args = Array.prototype.slice.call(arguments, 1);
   if (window.google && google.script && google.script.run) {
@@ -988,10 +989,18 @@ function call(fn) {
     });
   }
   if (!API_URL) return Promise.reject(new Error('This page is not connected yet. Paste your web-app link into API_URL at the top of the script.'));
-  return fetch(API_URL, {method: 'POST', headers: {'Content-Type': 'text/plain;charset=utf-8'}, body: JSON.stringify({fn: fn, args: args})})
-    .then(r => r.json())
-    .then(r => { if (r && r.ok) return r.data; throw new Error((r && r.error) || 'Something went wrong. Please try again.'); })
-    .catch(e => { throw new Error(/fetch|network|json/i.test(e.message) ? 'The connection was slow and we did not get a reply. Please tap the button once more. We will not create a double order. (If it keeps happening, try a smaller screenshot.)' : e.message); });
+  // slow or dropped connection: wait longer, then retry quietly with the same request id so the server never saves twice
+  const rid = Date.now().toString(36) + Math.random().toString(36).slice(2, 10), body = JSON.stringify({fn: fn, args: args, rid: rid});
+  const limit = /^admin/.test(fn) ? 70000 : 45000;
+  const attempt = n => {
+    const ac = typeof AbortController === 'function' ? new AbortController() : null, tm = ac ? setTimeout(() => ac.abort(), limit) : 0;
+    return fetch(API_URL, {method: 'POST', headers: {'Content-Type': 'text/plain;charset=utf-8'}, body: body, signal: ac ? ac.signal : undefined})
+      .then(r => { clearTimeout(tm); return r.json(); })
+      .catch(e => { clearTimeout(tm); if (n < 2) return new Promise(res => setTimeout(res, 1200 * (n + 1))).then(() => attempt(n + 1)); throw e; });
+  };
+  return attempt(0)
+    .then(r => { if (r && r.ok) return r.data; const er = new Error((r && r.error) || 'Something went wrong. Please try again.'); er.srv = 1; throw er; })
+    .catch(e => { if (e.srv) throw e; throw new Error('The connection is slow right now and we did not get a reply. Please tap the button once more. We will not create a double order.'); });
 }
 const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
@@ -1124,10 +1133,10 @@ function calc() {
   const combined = hl || (d.combined && S.mm && S.mm.ref === d.mammothRef.trim().toUpperCase());
   const region = hl ? '' : (combined ? S.mm.region : d.region);
   const onlyAddons = items.length > 0 && items.every(i => i.p.addon);
-  const mmc = cfg.mm || {}, isMM = f === 'MAMMOTH', bigPack = isMM && mmc.packBigFee > 0 && sub > mmc.packBigOver;
+  const mmc = cfg.mm || {}, isMM = f === 'MAMMOTH', bigPack = isMM && mmc.packBigFee > 0 && sub > mmc.packBigOver, noShipF = isMM ? !mmc.shipNow : (f === 'FUAN5' && !(cfg.fu5 && cfg.fu5.shipNow));
   const packaging = (onlyAddons || hl || (combined && S.mm && S.mm.hold)) ? 0 : (bigPack ? mmc.packBigFee : cfg.packagingFee);
-  const keptShip = (S.editing && S.editing.shipping) || 0, shipLater = isMM && !mmc.shipNow && !combined && !keptShip;
-  const shipping = combined ? 0 : (isMM && !mmc.shipNow ? keptShip : (region ? cfg.ship[region] : 0));
+  const keptShip = (S.editing && S.editing.shipping) || 0, shipLater = noShipF && !combined && !keptShip;
+  const shipping = combined ? 0 : (noShipF ? keptShip : (region ? cfg.ship[region] : 0));
   const vc = vchCalc(d.vlist, sub, packaging, shipping);
   return {items, sub, vials, packaging, onlyAddons, shipping, shipLater, region, combined, vc, total: Math.round((sub + packaging + shipping - vc.amount) * 100) / 100};
 }
@@ -1454,9 +1463,9 @@ function revealOnScroll() {
 function gbInfo(k) {
   const F = S.cfg.forms[k], co = F.cutoff ? '<div class="cdwrap">' + cdHtml(F.cutoff) + '</div>' : '';
   const pb = S.cfg.pb, pbf = pb ? '<span class="fact">Pharma Bac ' + fmt(pb.price).replace('.00', '') + ' · ' + fmt(pb.bulkPrice).replace('.00', '') + ' from ' + pb.bulkQty + '</span>' : '';
-  if (k === 'FUAN4') {
-    const g = S.products.find(p => p.form === k && !p.addon);
-    return {ico: ICON.drop, tag: 'New', desc: 'Glutathione 1500mg · half kit (5 vials) or a full kit (10 vials)', facts: [g ? '<span class="fact">' + fmt(g.vialPrice).replace('.00', '') + ' per vial</span>' : '', '<span class="fact">Pay when you order</span>', pbf].join(''), co,
+  if (k === 'FUAN4' || k === 'FUAN5') {
+    const g = S.products.find(p => p.form === k && !p.addon), pp = S.products.find(p => p.form === k && p.addon), pbf5 = pp && pp.tier ? '<span class="fact">Pharma Bac ' + fmt(pp.vialPrice).replace('.00', '') + ' · ' + fmt(pp.tier.price).replace('.00', '') + ' from ' + pp.tier.qty + '</span>' : pbf;
+    return {ico: ICON.drop, tag: k === 'FUAN5' ? 'Last of the year' : 'New', desc: 'Glutathione 1500mg · half kit (5 vials) or a full kit (10 vials)', facts: [g ? '<span class="fact">' + fmt(g.vialPrice).replace('.00', '') + ' per vial</span>' : '', '<span class="fact">Pay when you order</span>', k === 'FUAN5' && noShipNow('FUAN5') ? '<span class="fact">No shipping fee for now</span>' : '', pbf5].join(''), co,
       peek: S.products.filter(p => p.form === k).map(p => '<div class="iline"><span>' + esc(p.name) + ' <span class="muted small">' + esc(p.spec) + '</span></span><b class="num">' + (p.tier ? fmt(p.vialPrice).replace('.00', '') + ' · ' + fmt(p.tier.price).replace('.00', '') + ' at ' + p.tier.qty + '+' : fmt(p.vialPrice).replace('.00', '') + ' / vial') + '</b></div>').join('')};
   }
   if (k === 'YIXING') {
@@ -1719,7 +1728,7 @@ function welcomeHtml() {
   const F = S.cfg.forms;
   const recent = store.get('blvc_recent', []);
   const pill = f => f.open ? '<span class="pill open">Open</span>' : '<span class="pill closed">Closed</span>';
-  const order = ['MAMMOTH', 'FUAN4', 'YIXING'].filter(k => F[k] && F[k].open);
+  const order = ['MAMMOTH', 'FUAN5', 'FUAN4', 'YIXING'].filter(k => F[k] && F[k].open);
   const gb = k => {
     const g = gbInfo(k);
     return '<div class="gbx flo rv"><button class="gb" data-go="' + k + '"><span class="ico">' + g.ico + '</span><span class="grow"><span class="tt">' + esc(F[k].title) + ' ' + pill(F[k]) + (g.tag ? ' <span class="pill new">' + g.tag + '</span>' : '') + '</span><span class="ds" style="display:block">' + g.desc + '</span></span><span class="go">' + ICON.go + '</span></button>' +
@@ -1743,7 +1752,7 @@ function welcomeHtml() {
     (S.cfg.customerViewLink ? '<div class="stack" style="margin-top:10px"><a class="btn ghost" href="' + esc(S.cfg.customerViewLink) + '" target="_blank" rel="noopener">' + ICON.box + ' See the live order board</a></div>' : '') +
     (recent.length ? '<p class="small muted" style="margin-top:14px">Your last order: <button class="linkbtn" id="lastBtn">' + esc(recent[0].ref) + '</button></p>' : '') +
     '<div class="talk"><a class="btn soft" href="' + esc(S.cfg.communityLink) + '" target="_blank" rel="noopener">' + ICON.wa + ' Join our WhatsApp community</a></div></div>' +
-  '<footer class="foot"><p>Questions? Chat with us directly.</p><p class="small muted" style="margin:4px 0 0">Site version: Nov 22 · 6:10 PM</p><div class="waline"><a class="btn ghost" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center" target="_blank" rel="noopener" href="' + 'https://api.whatsapp.com/send?phone=' + esc(S.cfg.adminWhatsapp) + '&text=' + encodeURIComponent('Hi ' + S.cfg.businessName + '! I have a question.') + '">Message ' + esc(localNum(S.cfg.adminWhatsapp)) + '</a></div><button class="linkbtn" id="adminLink" style="font-size:13px;opacity:.7">Admin</button></footer>';
+  '<footer class="foot"><p>Questions? Chat with us directly.</p><p class="small muted" style="margin:4px 0 0">Site version: Nov 24 · 2:10 PM</p><div class="waline"><a class="btn ghost" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center" target="_blank" rel="noopener" href="' + 'https://api.whatsapp.com/send?phone=' + esc(S.cfg.adminWhatsapp) + '&text=' + encodeURIComponent('Hi ' + S.cfg.businessName + '! I have a question.') + '">Message ' + esc(localNum(S.cfg.adminWhatsapp)) + '</a></div><button class="linkbtn" id="adminLink" style="font-size:13px;opacity:.7">Admin</button></footer>';
 }
 function bindWelcome() {
   bindLabWelcome(); startCountdowns(); revealOnScroll(); bindRate(); bindPoll(); bgStart(); bindWelcomeFx(); if ($('#goCmp2')) $('#goCmp2').onclick = () => go('compare');
@@ -2030,7 +2039,7 @@ async function openInvRec(rec, drafts, opts) {
 }
 /* the quick invoice for one order (the Invoice button inside every order) */
 function openInvoice(o) { openInvRec({refs: [o.ref], createdAt: o.createdAt}, null, {more: true}); }
-const INV_FORMS = ['FUAN4', 'MAMMOTH', 'FUAN', 'FUAN3', 'YIXING'];
+const INV_FORMS = ['FUAN5', 'FUAN4', 'MAMMOTH', 'FUAN', 'FUAN3', 'YIXING'];
 const invBlock = form => ({form: form || 'FUAN4', items: [{code: '', unit: 'Vial', qty: 1}], pk: '', sh: '', vouchers: ''});
 function invBlank() { return {no: '', name: '', phone: '', email: '', region: 'Luzon', address: '', refs: [], blocks: [], custom: [], pk: '', sh: '', addrAuto: false, note: '', paid: 'No', prev: null, err: ''}; }
 function invLoad(rec) {
@@ -2468,11 +2477,11 @@ function detailsForm(isFuan) {
   let ship = '';
   if (isFuan) {
     ship = '<div id="holdBox"></div><div class="field" id="shipField"><label class="f">Shipping</label><div class="seg two" id="shipMode">' +
-      '<button class="opt" data-m="own" aria-pressed="' + !d.combined + '">Ship to my region<small>' + (S.form === 'MAMMOTH' && !(cfg.mm && cfg.mm.shipNow) ? 'No shipping fee for now' : 'Regular shipping fee') + '</small></button>' +
+      '<button class="opt" data-m="own" aria-pressed="' + !d.combined + '">Ship to my region<small>' + (noShipNow(S.form) ? 'No shipping fee for now' : 'Regular shipping fee') + '</small></button>' +
       '<button class="opt" data-m="mm" aria-pressed="' + d.combined + '">Ship with my other order<small>Mammoth, Fuan or Yixing</small></button></div></div>';
   }
   const regionBlock = '<div class="field" id="regionBox"><label class="f">Where are we shipping?</label><div class="seg" id="regions">' +
-    REGIONS.map(r => '<button class="opt" data-r="' + r + '" aria-pressed="' + (d.region === r) + '">' + r + '<small>' + (S.form === 'MAMMOTH' && !(cfg.mm && cfg.mm.shipNow) ? 'shipping fee later' : fmt(cfg.ship[r]) + ' shipping') + '</small></button>').join('') + '</div></div>' + (S.form === 'MAMMOTH' && !e ? mmAddrHtml(d) : '');
+    REGIONS.map(r => '<button class="opt" data-r="' + r + '" aria-pressed="' + (d.region === r) + '">' + r + '<small>' + (noShipNow(S.form) ? 'shipping fee later' : fmt(cfg.ship[r]) + ' shipping') + '</small></button>').join('') + '</div></div>' + ((S.form === 'MAMMOTH' || S.form === 'FUAN5') && !e ? mmAddrHtml(d) : '');
   const mmBlock = '<div class="field" id="mmBox"><label class="f" for="mmRef">Reference number of your other order</label>' +
     '<div class="row"><input class="in grow" id="mmRef" placeholder="e.g. BLVC-MMGB-XXXXXX" autocapitalize="characters" value="' + esc(d.mammothRef) + '"><button class="btn sm" id="mmCheck" type="button">Check</button></div>' +
     '<div id="mmMsg"></div><p class="hint">We match it with the WhatsApp number above, then ship both orders together. Each order keeps its own packaging fee; only the shipping fee is shared.</p></div>';
@@ -2598,7 +2607,7 @@ async function place() {
   else if (d.combined) {
     if (!(S.mm && S.mm.ref === d.mammothRef.trim().toUpperCase())) return fail(MSG.mmCheck);
   } else if (!d.region) return fail(MSG.region);
-  const needAddr = S.form === 'MAMMOTH' && !e && !holdT2 && !d.combined;
+  const needAddr = (S.form === 'MAMMOTH' || S.form === 'FUAN5') && !e && !holdT2 && !d.combined;
   if (needAddr && !mmAddrOk(d.a)) { const ab = $('#mmAddr'); if (ab) ab.scrollIntoView({behavior: 'smooth', block: 'center'}); return fail('Please complete your delivery address: street, barangay, city, province and a 4-digit ZIP code.'); }
   if (needsPayNow() && !(S.fp && S.fp.img)) { fail('Upload your payment screenshot to place your order.'); const pl = $('#pfl'); if (pl) pl.scrollIntoView({behavior: 'smooth', block: 'center'}); return; }
   const payload = {form: S.form, name: d.name, phone: d.phone, region: d.region, note: d.note,
@@ -2724,7 +2733,7 @@ function receiptHtml(o) {
     '<div class="line"><span>Items subtotal</span><span class="num">' + fmt(o.subtotal) + '</span></div>' +
     '<div class="line"><span>Packaging fee</span><span class="num">' + fmt(o.packaging) + '</span></div>' +
     (o.labFee > 0 ? '<div class="line"><span>Vial labels &amp; numbers' + (o.labVials ? ' (' + o.labVials + ' vial' + (o.labVials === 1 ? '' : 's') + ')' : '') + '</span><span class="num">' + fmt(o.labFee) + '</span></div>' : '') +
-    '<div class="line"><span>Shipping</span><span class="num">' + (o.form === 'MAMMOTH' && !o.shipping && !(S.cfg.mm && S.cfg.mm.shipNow) ? 'not charged yet' : fmt(o.shipping)) + '</span></div>' +
+    '<div class="line"><span>Shipping</span><span class="num">' + (noShipNow(o.form) && !o.shipping ? 'not charged yet' : fmt(o.shipping)) + '</span></div>' +
     (o.voucher ? (o.voucher.list || [o.voucher]).map(x => vchLine(x.code, x.amount)).join('') : '') +
     '<div class="line total"><span>Total</span><span class="num">' + fmt(o.total + (o.labFee || 0)) + '</span></div>' +
     (o.paid > 0 ? '<div class="line"><span>Paid so far</span><span class="num">' + fmt(o.paid) + '</span></div>' + (o.due > 0.004 ? '<div class="line total"><span>Balance to pay</span><span class="num">' + fmt(o.due) + '</span></div>' : o.over > 0.004 ? '<div class="line"><span>Overpaid</span><span class="num">' + fmt(o.over) + '</span></div>' : '') : '') +
@@ -2859,7 +2868,7 @@ function loadImage(file) {
   }));
 }
 function drawProof(P, ms) {
-  const im = P.img, MAXW = 1400;
+  const im = P.img, MAXW = 1100;
   let w = im.naturalWidth || im.width, h = im.naturalHeight || im.height;
   const sc = Math.min(1, MAXW / Math.max(w, h)); w = Math.max(1, Math.round(w * sc)); h = Math.max(1, Math.round(h * sc));
   const bar = Math.max(64, Math.round(w * 0.075)), when_ = phDate(ms), label = proofLabel(P);
@@ -2887,8 +2896,8 @@ function drawProof(P, ms) {
   return cv;
 }
 function proofJpeg(cv) {
-  let q = 0.85, d = cv.toDataURL('image/jpeg', q);
-  while (d.length > 3800000 && q > 0.4) { q -= 0.1; d = cv.toDataURL('image/jpeg', q); }
+  let q = 0.78, d = cv.toDataURL('image/jpeg', q);
+  while (d.length > 450000 && q > 0.4) { q -= 0.08; d = cv.toDataURL('image/jpeg', q); }
   return d;
 }
 async function copyImage(cv) {
@@ -3245,15 +3254,29 @@ function adminCarts() {
   const left = iso => { const h = Math.max(0, Math.round((Date.parse(iso) - Date.now()) / 36e5)); return h >= 48 ? Math.round(h / 24) + ' days' : h + ' hr'; };
   const title = f => f === 'YIXING' ? A.raw.pub.forms.YIXING.title : (A.raw.pub.forms[f] || {}).title || f;
   $('#tab').innerHTML =
-    '<div class="alert warn" style="margin-top:0">These are <b>saved carts, not orders</b>. They do not count in kits, bunuan, sales or payments. A cart clears itself after ' + days + ' days, or the moment the buyer checks out.</div>' +
+    '<div class="alert warn" style="margin-top:0">These are <b>saved carts, not orders</b>. They do not count in kits, bunuan, sales or payments until you tap <b>Make order</b> (works after the cut-off too). A cart clears itself after ' + days + ' days, or the moment the buyer checks out.</div>' +
+    (cs.length > 1 ? '<div class="row" style="margin:0 0 10px"><button class="btn" id="cconvAll">Turn all ' + cs.length + ' carts into orders</button></div>' : '') +
     (cs.length ? cs.map(c => {
       const wa = 'https://api.whatsapp.com/send?phone=63' + String(c.phone).replace(/\D/g, '').replace(/^0/, '') + '&text=' + encodeURIComponent('Hi ' + c.name + '! You saved a cart in ' + title(c.form) + ' (' + fmt(c.subtotal) + '). Would you like to check out? 💗');
       return '<div class="card" style="padding:14px"><div class="row spread"><b>' + esc(c.name) + '</b><span class="tag kit">' + esc(title(c.form)) + '</span></div>' +
         '<div class="small muted">' + esc(c.phone) + (c.region ? ' · ' + esc(c.region) : '') + ' · saved ' + when(c.savedAt) + ' · clears in ' + left(c.expires) + '</div>' +
         c.items.map(i => '<div class="iline"><span>' + esc(i.name) + ' <span class="muted small">' + esc(i.spec) + '</span></span><span class="num">' + i.qty + (i.unit === 'Kit' ? ' kit' : '') + ' × ' + fmt(i.price) + '</span></div>').join('') +
-        '<div class="row spread" style="margin-top:8px"><b>Items ' + fmt(c.subtotal) + '</b><span><a class="btn sm soft" style="text-decoration:none" target="_blank" rel="noopener" href="' + wa + '">Remind on WhatsApp</a> <button class="btn sm ghost" data-cdel="' + esc(c.id) + '">Remove</button></span></div></div>';
+        '<div class="row spread" style="margin-top:8px"><b>Items ' + fmt(c.subtotal) + '</b><span><a class="btn sm soft" style="text-decoration:none" target="_blank" rel="noopener" href="' + wa + '">Remind on WhatsApp</a> <button class="btn sm" data-cconv="' + esc(c.id) + '">Make order</button> <button class="btn sm ghost" data-cdel="' + esc(c.id) + '">Remove</button></span></div></div>';
     }).join('') : '<div class="card center"><p class="muted">No saved carts right now.</p></div>');
   document.querySelectorAll('[data-cdel]').forEach(b => b.onclick = async () => { try { await adminCall('adminCartDelete', b.dataset.cdel); adminView(); toast('Cart removed'); } catch (e) {} });
+  document.querySelectorAll('[data-cconv]').forEach(b => b.onclick = async () => {
+    if (!confirm('Turn this cart into a real order? It will count in kits and sales, starting as Unpaid.')) return;
+    b.disabled = true;
+    try { await adminCall('adminCartConvert', b.dataset.cconv); adminView(); toast('Order created: ' + (A.raw.addedRef || '')); } catch (e) { b.disabled = false; }
+  });
+  const all = $('#cconvAll');
+  if (all) all.onclick = async () => {
+    const ids = cs.filter(c => c.form !== 'YIXING').map(c => c.id);
+    if (!ids.length || !confirm('Turn ' + ids.length + ' carts into real orders? They will count in kits and sales, starting as Unpaid. Yixing carts are skipped.')) return;
+    all.disabled = true; let ok = 0, bad = 0;
+    for (const id of ids) { try { await adminCall('adminCartConvert', id); ok++; } catch (e) { bad++; } }
+    adminView(); toast(ok + ' order' + (ok === 1 ? '' : 's') + ' created' + (bad ? ', ' + bad + ' could not be converted' : ''));
+  };
 }
 
 /* --- vouchers (owner only): make discount codes, see how they are used */
@@ -3598,7 +3621,7 @@ function adminOrders() {
     '<button class="btn" id="newOrder">Add an order</button>' +
     '<div class="seg2" id="vw"><button class="opt" data-v="orders" aria-pressed="' + (A.view === 'orders') + '">By order</button><button class="opt" data-v="customers" aria-pressed="' + (A.view === 'customers') + '">By customer</button></div>' +
     '<div class="filters"><div class="full search"><span>' + ICON.search + '</span><input class="in" id="fq" type="search" placeholder="Search name, number or reference" value="' + esc(f.q) + '"></div>' +
-    '<select class="in" id="ff"><option value="">All forms</option>' + ['MAMMOTH', 'FUAN', 'FUAN3', 'FUAN4'].map(k => '<option value="' + k + '"' + (f.form === k ? ' selected' : '') + '>' + esc(k === 'MAMMOTH' ? 'Mammoth' : A.data.pub.forms[k].title) + '</option>').join('') + '</select>' +
+    '<select class="in" id="ff"><option value="">All forms</option>' + ['MAMMOTH', 'FUAN', 'FUAN3', 'FUAN4', 'FUAN5'].map(k => '<option value="' + k + '"' + (f.form === k ? ' selected' : '') + '>' + esc(k === 'MAMMOTH' ? 'Mammoth' : A.data.pub.forms[k].title) + '</option>').join('') + '</select>' +
     '<select class="in" id="fp2"><option value="">Any payment</option>' + PAYS.map(x => '<option' + (f.pay === x ? ' selected' : '') + '>' + x + '</option>').join('') + '</select>' +
     '<select class="in" id="fs"><option value="">Any status</option>' + STATS.map(x => '<option' + (f.status === x ? ' selected' : '') + '>' + x + '</option>').join('') + '</select>' +
     '<select class="in" id="fsort"><option value="new"' + (A.sort === 'new' ? ' selected' : '') + '>Newest first</option><option value="old"' + (A.sort === 'old' ? ' selected' : '') + '>Oldest first</option><option value="big"' + (A.sort === 'big' ? ' selected' : '') + '>Biggest total</option><option value="name"' + (A.sort === 'name' ? ' selected' : '') + '>Name A to Z</option></select></div>' +
@@ -3689,7 +3712,7 @@ function drawEditor() {
   const opts = (arr, v) => arr.map(x => '<option' + (x === v ? ' selected' : '') + '>' + x + '</option>').join('');
   modal(
     '<div class="row spread"><h2 class="h-lg">' + (E.ref ? esc(E.ref) : 'New order') + '</h2><button class="iconbtn" id="mx" aria-label="Close">' + ICON.x + '</button></div>' +
-    '<div class="field" style="margin-top:14px"><label class="f">Group buy</label><select class="in" id="ef" ' + (E.ref ? 'disabled' : '') + '>' + ['FUAN4', 'MAMMOTH', 'FUAN', 'FUAN3'].map(k => '<option value="' + k + '"' + (E.form === k ? ' selected' : '') + '>' + esc(d.pub.forms[k].title) + '</option>').join('') + '</select></div>' +
+    '<div class="field" style="margin-top:14px"><label class="f">Group buy</label><select class="in" id="ef" ' + (E.ref ? 'disabled' : '') + '>' + ['FUAN5', 'FUAN4', 'MAMMOTH', 'FUAN', 'FUAN3'].map(k => '<option value="' + k + '"' + (E.form === k ? ' selected' : '') + '>' + esc(d.pub.forms[k].title) + '</option>').join('') + '</select></div>' +
     '<div class="two"><div class="field"><label class="f">Name</label><input class="in" id="en" value="' + esc(E.name) + '"></div><div class="field"><label class="f">WhatsApp</label><input class="in" id="ep" type="tel" value="' + esc(E.phone) + '"></div></div>' +
     '<div class="two"><div class="field"><label class="f">Region</label><select class="in" id="er">' + opts(REGIONS, E.region) + '</select></div>' +
     '<div class="field" id="combBox"><label class="f">Shipping</label><select class="in" id="ec"><option value="0"' + (!E.combined ? ' selected' : '') + '>Regular</option><option value="1"' + (E.combined ? ' selected' : '') + '>Together with another order</option></select></div></div>' +
@@ -3778,7 +3801,7 @@ function adminInventory() {
   document.querySelectorAll('#ichips [data-f]').forEach(b => b.onclick = () => { I.f = b.dataset.f; adminInventory(); });
   $('#cpfwd').onclick = () => {
     const lines = [];
-    ['MAMMOTH', 'FUAN', 'FUAN3', 'FUAN4'].forEach(f => {
+    ['MAMMOTH', 'FUAN', 'FUAN3', 'FUAN4', 'FUAN5'].forEach(f => {
       const rs = withOrders.filter(r => r.p.form === f && r.kits > 0).sort((a, b) => a.p.name.localeCompare(b.p.name));
       if (!rs.length) return;
       lines.push(d.pub.forms[f].title + ': kits to forward');
@@ -3863,7 +3886,7 @@ function openProductEditor(p) {
   const P = p ? Object.assign({}, p) : {form: 'MAMMOTH', code: '', name: '', spec: '', usd: '', kitPrice: '', min: 2, kitSize: 10, sizes: [], unit: 'vial', active: true};
   const orig = p ? p.code : '';
   modal('<div class="row spread"><h2 class="h-lg">' + (isNew ? 'New product' : esc(P.name)) + '</h2><button class="iconbtn" id="mx" aria-label="Close">' + ICON.x + '</button></div>' +
-    '<div class="two" style="margin-top:14px"><div class="field"><label class="f">Group buy</label><select class="in" id="pf" ' + (isNew ? '' : 'disabled') + '><option value="MAMMOTH"' + (P.form === 'MAMMOTH' ? ' selected' : '') + '>Mammoth</option><option value="FUAN"' + (P.form === 'FUAN' ? ' selected' : '') + '>Fuan GB2</option><option value="FUAN3"' + (P.form === 'FUAN3' ? ' selected' : '') + '>Fuan GB3</option><option value="FUAN4"' + (P.form === 'FUAN4' ? ' selected' : '') + '>Fuan GTT</option></select></div><div class="field"><label class="f">Item code</label><input class="in" id="pc" value="' + esc(P.code) + '"></div></div>' +
+    '<div class="two" style="margin-top:14px"><div class="field"><label class="f">Group buy</label><select class="in" id="pf" ' + (isNew ? '' : 'disabled') + '><option value="MAMMOTH"' + (P.form === 'MAMMOTH' ? ' selected' : '') + '>Mammoth</option><option value="FUAN"' + (P.form === 'FUAN' ? ' selected' : '') + '>Fuan GB2</option><option value="FUAN3"' + (P.form === 'FUAN3' ? ' selected' : '') + '>Fuan GB3</option><option value="FUAN4"' + (P.form === 'FUAN4' ? ' selected' : '') + '>Fuan GTT</option><option value="FUAN5"' + (P.form === 'FUAN5' ? ' selected' : '') + '>Last Fuan GB for the year</option></select></div><div class="field"><label class="f">Item code</label><input class="in" id="pc" value="' + esc(P.code) + '"></div></div>' +
     '<div class="field"><label class="f">Product name</label><input class="in" id="pn" value="' + esc(P.name) + '"></div>' +
     '<div class="field"><label class="f">Specification</label><input class="in" id="ps" value="' + esc(P.spec) + '" placeholder="e.g. 10 mg/vial"></div>' +
     '<div class="field"><label class="f">Category</label><input class="in" id="pcat" list="catlist" value="' + esc(P.category || '') + '" placeholder="Pick one or type a new category"><datalist id="catlist">' + (d.categories || []).map(c => '<option value="' + esc(c) + '">').join('') + '</datalist></div>' +
@@ -3913,8 +3936,14 @@ function adminSettings() {
     inp('s_fuan4Title', 'Fuan GTT form title', s.fuan4Title) + yn('s_fuan4Open', 'Fuan GTT open for new orders?', s.fuan4Open) +
     '<div class="field"><label class="f" for="s_fuan4Cutoff">Cut-off (Philippine time)</label><input class="in" id="s_fuan4Cutoff" type="datetime-local" value="' + esc(String(s.fuan4Cutoff || '').replace(' ', 'T').slice(0, 16)) + '"><p class="hint">After this time nobody can place or change a Fuan GTT order. A countdown shows on the welcome page. Clear it for no cut-off.</p></div>' +
     '<p class="hint">Price: edit Glutathione under Products (group buy: Fuan GTT). Orders need a payment screenshot, same as Fuan GB3.</p></div>' +
+    '<div class="card"><h2 class="h-md" style="margin-bottom:6px">Last Fuan GB for the year</h2>' +
+    inp('s_fuan5Title', 'Form title', s.fuan5Title) + yn('s_fuan5Open', 'Open for new orders?', s.fuan5Open) +
+    '<div class="field"><label class="f" for="s_fuan5Cutoff">Cut-off (Philippine time)</label><input class="in" id="s_fuan5Cutoff" type="datetime-local" value="' + esc(String(s.fuan5Cutoff || '').replace(' ', 'T').slice(0, 16)) + '"><p class="hint">After this time nobody can place or change an order here. A countdown shows on the welcome page. Leave empty for no cut-off.</p></div>' +
+    yn('s_fuan5ShipCharge', 'Charge a shipping fee on orders?', s.fuan5ShipCharge) +
+    inp('s_fuan5PbQty', 'Pharma Bac lower price starts at (ampoules)', s.fuan5PbQty, 'number') +
+    '<p class="hint">Pharma Bac here costs the "Pharma Bac each" price, and the lower "each when buying more" price from this many ampoules. Glutathione price: edit it under Products (group buy: Last Fuan GB for the year). Orders need a payment screenshot.</p></div>' +
     '<div class="card"><h2 class="h-md" style="margin-bottom:6px">Pharma Bac and carts</h2><div class="two">' + inp('s_pbPrice', 'Pharma Bac each (₱)', s.pbPrice, 'number') + inp('s_pbBulkPrice', 'Each when buying more (₱)', s.pbBulkPrice, 'number') + '</div>' + inp('s_pbBulkQty', 'Lower price starts at this many', s.pbBulkQty, 'number', 'For example 5: five or more Pharma Bac cost the lower price each. Applies to Yixing and Fuan.') +
-    inp('s_cartDays', 'Saved carts clear after (days)', s.cartDays, 'number', 'Carts are temporary. They never count as orders.') + inp('s_voucherStack', 'Vouchers per order (1 to 3)', s.voucherStack, 'number', 'How many different vouchers one order can use. Each voucher can also be set to be used alone.') + '</div>' +
+    inp('s_cartDays', 'Saved carts clear after (days)', s.cartDays, 'number', 'Carts are temporary and never count as orders until you tap Make order. A longer number also keeps carts that are already saved.') + inp('s_voucherStack', 'Vouchers per order (1 to 3)', s.voucherStack, 'number', 'How many different vouchers one order can use. Each voucher can also be set to be used alone.') + '</div>' +
     '<div class="card"><h2 class="h-md" style="margin-bottom:6px">Admin access</h2><p class="hint" style="margin-top:0">Your passcode opens everything. Jez has her own passcode: she can open and edit orders, payments, Yixing, labels, customers and carts. She cannot see the dashboard totals, sales, proceeds, inventory, products or settings.</p>' +
     '<p class="small" style="margin:0 0 8px">Jez\'s access: <b>' + (d0.hasJez ? 'on' : 'not set up yet') + '</b></p>' + inp('s_jezPin', d0.hasJez ? 'New passcode for Jez (6+ characters)' : 'Passcode for Jez (6+ characters)', '', 'password') +
     '<div class="row" style="gap:8px"><button class="btn grow" id="jezsave">' + (d0.hasJez ? 'Change Jez\'s passcode' : 'Give Jez access') + '</button>' + (d0.hasJez ? '<button class="btn ghost" id="jezoff">Turn off</button>' : '') + '</div><div id="jerr"></div></div>' +
@@ -3970,7 +3999,7 @@ function adminSettings() {
     const btn = $('#ssave'); btn.disabled = true; btn.textContent = 'Saving…';
     const g = id => $('#' + id).value;
     const body = {usdRate: g('s_usdRate'), packagingFee: g('s_packagingFee'), shipLuzon: g('s_shipLuzon'), shipVisayas: g('s_shipVisayas'), shipMindanao: g('s_shipMindanao'),
-      fuan4Title: g('s_fuan4Title'), fuan4Open: g('s_fuan4Open'), fuan4Cutoff: g('s_fuan4Cutoff').replace('T', ' '), yixCutoff: g('s_yixCutoff').replace('T', ' '), pbPrice: g('s_pbPrice'), pbBulkPrice: g('s_pbBulkPrice'), pbBulkQty: g('s_pbBulkQty'), cartDays: g('s_cartDays'), voucherStack: g('s_voucherStack'),
+      fuan4Title: g('s_fuan4Title'), fuan4Open: g('s_fuan4Open'), fuan4Cutoff: g('s_fuan4Cutoff').replace('T', ' '), fuan5Title: g('s_fuan5Title'), fuan5Open: g('s_fuan5Open'), fuan5Cutoff: g('s_fuan5Cutoff').replace('T', ' '), fuan5PbQty: g('s_fuan5PbQty'), fuan5ShipCharge: g('s_fuan5ShipCharge'), yixCutoff: g('s_yixCutoff').replace('T', ' '), pbPrice: g('s_pbPrice'), pbBulkPrice: g('s_pbBulkPrice'), pbBulkQty: g('s_pbBulkQty'), cartDays: g('s_cartDays'), voucherStack: g('s_voucherStack'),
       fuan3Title: g('s_fuan3Title'), fuan3Open: g('s_fuan3Open'), singleVialInBunuan: g('s_singleVialInBunuan'), mammothTitle: g('s_mammothTitle'), labelsOpen: g('s_labelsOpen'), mammothShipCharge: g('s_mammothShipCharge'), packBigFee: g('s_packBigFee'), packBigOver: g('s_packBigOver'), labelFee: g('s_labelFee'), mammothOpen: g('s_mammothOpen'), fuanTitle: g('s_fuanTitle'), fuanOpen: g('s_fuanOpen'),
       businessName: g('s_businessName'), adminWhatsapp: g('s_adminWhatsapp'), communityLink: g('s_communityLink'), customerViewLink: g('s_customerViewLink'), siteLink: g('s_siteLink'), yixTitle: g('s_yixTitle'), welcomeTitle: g('s_welcomeTitle'), welcomeText: g('s_welcomeText'), welcomeTag: g('s_welcomeTag'), welcomePoints: g('s_welcomePoints'), yixOpen: g('s_yixOpen'), yixBunuan: g('s_yixBunuan'), yixPackaging: g('s_yixPackaging'), yixShipLuzon: g('s_yixShipLuzon'), yixShipVisayas: g('s_yixShipVisayas'), yixShipMindanao: g('s_yixShipMindanao'), yixLabelFee: g('s_yixLabelFee'), yixNote: g('s_yixNote'), announcement: g('s_announcement'), paymentNote: g('s_paymentNote')};
     try { await adminCall('adminSaveSettings', body); await refreshPublic(); adminView(); toast('Settings saved. The website is updated'); }
